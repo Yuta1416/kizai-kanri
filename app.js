@@ -239,6 +239,7 @@ function render() {
 
 function renderOut() {
   const container = document.getElementById('out-container');
+  if (!container) return; // タブが非表示の場合はスキップ
   if (!outItems.length) {
     container.innerHTML = `<div class="empty">持ち出し中の機材はありません</div>`;
     return;
@@ -313,6 +314,7 @@ function bulkReturn(project, e) {
 
 function renderSpecial() {
   const tb = document.getElementById('tbl-special');
+  if (!tb) return; // タブが非表示の場合はスキップ
   const sp = inv.filter(i => ['修理中','レンタル中','長期不在'].includes(calcSt(i)));
   if (!sp.length) { tb.innerHTML = `<tr><td colspan="7" class="empty">修理・レンタル・長期不在の機材はありません</td></tr>`; return; }
   tb.innerHTML = sp.map(item => {
@@ -331,6 +333,7 @@ function renderSpecial() {
 
 function renderHistory() {
   const container = document.getElementById('hist-container');
+  if (!container) return; // タブが非表示の場合はスキップ
   if (!history.length) {
     container.innerHTML = `<div class="empty">履歴がありません</div>`;
     return;
