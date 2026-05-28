@@ -159,3 +159,7 @@ tr:hover td { background: var(--bg3); }
 .proj-item-row:last-child { border-bottom: none; }
 .proj-item-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; min-width: 120px; }
 .proj-item-qty  { font-size: 13px; font-weight: 700; color: var(--danger-text); min-width: 40px; }
+
+/* ===== コンボボックス（選択＋直接入力） ===== */
+.combo-wrap { display: flex; flex-direction: column; gap: 5px; }
+.combo-wrap select { font-family: var(--font); font-size: 12px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); }
