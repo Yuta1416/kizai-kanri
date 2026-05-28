@@ -234,7 +234,6 @@ function render() {
         <button class="act d" onclick="deleteItem(${idx})" aria-label="削除"><i class="ti ti-trash"></i></button>
       </td></tr>`;
   }).join('');
-  renderOut(); renderSpecial(); renderHistory();
 }
 
 function renderOut() {
@@ -383,7 +382,11 @@ function switchTab(tab, el) {
   ['all','out','special','history'].forEach(t => {
     document.getElementById('view-'+t).style.display = t===tab ? 'block' : 'none';
   });
-  render();
+  // タブに合わせて描画
+  if (tab === 'all')     { renderStats(); renderCats(); renderTable(); }
+  if (tab === 'out')     renderOut();
+  if (tab === 'special') renderSpecial();
+  if (tab === 'history') renderHistory();
 }
 
 function openCheckout(idx) {
@@ -644,3 +647,39 @@ function checkAutoReturn() {
 setInterval(checkAutoReturn, 60000);
 
 render();
+
+function renderTable() {
+  renderStats(); renderCats();
+  const srch = document.getElementById('srch').value.toLowerCase();
+  const catF = document.getElementById('catF').value;
+  const stF  = document.getElementById('stF').value;
+  const filtered = inv.filter(item => {
+    const st = calcSt(item);
+    const m = !srch || [item.cat,item.maker,item.model,item.note].some(v => v.toLowerCase().includes(srch));
+    return m && (!catF || item.cat === catF) && (!stF || st === stF);
+  });
+  const tb = document.getElementById('tbl-all');
+  if (!tb) return;
+  if (!filtered.length) { tb.innerHTML = `<tr><td colspan="8" class="empty">該当なし</td></tr>`; return; }
+  tb.innerHTML = filtered.map(item => {
+    const idx = inv.indexOf(item), st = calcSt(item), av = avail(item);
+    const noteHtml = item.note
+      ? `<span class="note-cell has" title="${item.note}"><i class="ti ti-notes"></i> ${item.note}</span>`
+      : `<span class="note-cell">—</span>`;
+    const canOut = av > 0 && !['修理中','レンタル中','長期不在'].includes(st);
+    return `<tr>
+      <td style="color:var(--text2);font-size:11px">${item.cat}</td>
+      <td style="font-size:11px">${item.maker}</td>
+      <td style="font-weight:700">${item.model}</td>
+      <td style="text-align:center">${item.total}</td>
+      <td style="text-align:center;font-weight:700;color:${av===0?'var(--danger-text)':'var(--text)'}">${av}</td>
+      <td>${badge(st)}</td>
+      <td>${noteHtml} <button class="act" style="padding:2px 5px;font-size:10px" onclick="openNoteModal(${idx})" aria-label="備考編集"><i class="ti ti-pencil"></i></button></td>
+      <td>
+        ${canOut?`<button class="act" onclick="openCheckout(${idx})" aria-label="持ち出し"><i class="ti ti-arrow-up-right"></i></button>`:''}
+        ${item.out>0?`<button class="act" onclick="openReturn(${idx})" aria-label="返却"><i class="ti ti-arrow-down-left"></i></button>`:''}
+        ${av>0?`<button class="act" onclick="openSpecial(${idx})" title="修理・レンタル・不在"><i class="ti ti-tool"></i></button>`:''}
+        <button class="act d" onclick="deleteItem(${idx})" aria-label="削除"><i class="ti ti-trash"></i></button>
+      </td></tr>`;
+  }).join('');
+}
