@@ -19,7 +19,7 @@
     <div class="topbar-right">
       <button class="btn" onclick="document.getElementById('xlsxIn').click()"><i class="ti ti-upload" aria-hidden="true"></i> Excel読み込み</button>
       <button class="btn" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i> CSV出力</button>
-      <button class="btn btn-primary" onclick="openModal('modal-add')"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
+      <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
       <input type="file" id="xlsxIn" accept=".xlsx,.csv" style="display:none" onchange="handleFile(event)">
     </div>
   </header>
@@ -129,8 +129,24 @@
 <div class="modal-backdrop" id="modal-add">
   <div class="modal">
     <h3><i class="ti ti-plus"></i> 機材追加</h3>
-    <div class="fr"><label>カテゴリ</label><input id="add-cat" placeholder="例: Microphone"></div>
-    <div class="fr"><label>メーカー</label><input id="add-maker" placeholder="例: SHURE"></div>
+    <div class="fr">
+      <label>カテゴリ</label>
+      <div class="combo-wrap">
+        <select id="add-cat-sel" onchange="syncCombo('add-cat-sel','add-cat')">
+          <option value="">— 新規入力 —</option>
+        </select>
+        <input id="add-cat" placeholder="または直接入力">
+      </div>
+    </div>
+    <div class="fr">
+      <label>メーカー</label>
+      <div class="combo-wrap">
+        <select id="add-maker-sel" onchange="syncCombo('add-maker-sel','add-maker')">
+          <option value="">— 新規入力 —</option>
+        </select>
+        <input id="add-maker" placeholder="または直接入力">
+      </div>
+    </div>
     <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58"></div>
     <div class="fr"><label>総在庫数</label><input type="number" id="add-qty" min="1" value="1"></div>
     <div class="fr"><label>備考</label><input id="add-note" placeholder="任意"></div>
