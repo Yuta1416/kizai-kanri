@@ -616,10 +616,21 @@ async function fetchFromSpreadsheet() {
       });
     }
 
-    render();
+// 全タブのデータを事前に描画しておく
+    renderStats();
+    renderCats();
+    renderInventory();
+    renderOut();
+    renderHistory();
+    renderSpecial();
   } catch(e) {
     console.error('スプレッドシート取得エラー:', e);
-    render();
+    renderStats();
+    renderCats();
+    renderInventory();
+    renderOut();
+    renderHistory();
+    renderSpecial();
   }
 }
 
