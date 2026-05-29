@@ -158,28 +158,54 @@ async function fetchFromSpreadsheet() {
     if (json.status === 'ok' && json.data.length > 0) {
       inv = json.data.map(function(r) {
         return {
-          cat: r.cat, maker: r.maker, model: r.model,
-          note: r.note, total: parseInt(r.total) || 0,
-          out: parseInt(r.out) || 0, special: 0,
-          status: r.status || 'IN',
+          cat:     r.cat,
+          maker:   r.maker,
+          model:   r.model,
+          note:    r.note,
+          total:   parseInt(r.total) || 0,
+          out:     parseInt(r.out) || 0,
+          special: 0,
+          status:  r.status || 'IN',
         };
       });
     }
 
     const res2 = await fetch(GAS_API_URL + '?action=out');
     const json2 = await res2.json();
-    if (json2.status === 'ok') {
+    if (json2.status === 'ok' && json2.data.length > 0) {
       outItems = json2.data.map(function(r, i) {
+        // inv配列から該当機材のインデックスを検索
         const invIdx = inv.findIndex(function(item) {
-          return item.model.includes(r.model) || r.model.includes(item.model);
+          return String(r.model).includes(item.model) ||
+                 String(item.maker + ' ' + item.model).includes(r.model) ||
+                 r.model.includes(item.model);
         });
         return {
-          id: i, invIdx: invIdx, model: r.model,
-          qty: parseInt(r.qty) || 0, project: r.project,
-          staff: r.staff, returnDate: r.dateReturn, date: r.date,
+          id:         i,
+          invIdx:     invIdx >= 0 ? invIdx : 0,
+          model:      r.model,
+          qty:        parseInt(r.qty) || 0,
+          project:    r.project,
+          staff:      r.staff,
+          returnDate: r.dateReturn,
+          date:       r.date,
         };
       });
+
+      // 履歴にも持ち出し中データを反映
+      outItems.forEach(function(o) {
+        history.push({
+          date:    o.date,
+          project: o.project,
+          staff:   o.staff,
+          model:   o.model,
+          qty:     o.qty,
+          action:  'OUT',
+          note:    o.returnDate ? '返却予定:' + o.returnDate : '',
+        });
+      });
     }
+
     render();
   } catch(e) {
     console.error('スプレッドシート取得エラー:', e);
