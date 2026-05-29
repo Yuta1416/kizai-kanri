@@ -589,8 +589,10 @@ async function fetchFromSpreadsheet() {
         .filter(function(r) { return r.model && r.model !== ''; })
         .map(function(r, i) {
           const invIdx = inv.findIndex(function(item) {
-            return r.model.includes(item.model) || item.model.includes(r.model);
-          });
+  const rModel = String(r.model || '');
+  const iModel = String(item.model || '');
+  return rModel.includes(iModel) || iModel.includes(rModel);
+});
           return {
             id:         i,
             invIdx:     invIdx >= 0 ? invIdx : 0,
