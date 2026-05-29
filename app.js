@@ -382,7 +382,31 @@ function doCheckout() {
   const now=new Date().toLocaleString('ja-JP');
   outItems.push({id:Date.now(),invIdx:coIdx,model:`${item.maker} ${item.model}`,qty,project:proj,staff,returnDate:ret,date:now});
   history.push({date:now,project:proj,staff,model:`${item.maker} ${item.model}`,qty,action:'OUT',note:ret?`返却予定:${ret}`:''});
-  closeModal('modal-checkout'); render();
+  closeModal('modal-checkout');
+  render();
+
+  // スプレッドシートにも反映
+  if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
+    const params = new URLSearchParams({
+      action:     'checkout',
+      model:      `${item.maker} ${item.model}`,
+      qty:        qty,
+      project:    proj || '',
+      staff:      staff || '',
+      dateOut:    '',
+      dateReturn: ret || '',
+    });
+    fetch(GAS_API_URL + '?' + params.toString())
+      .then(res => res.json())
+      .then(json => {
+        if (json.status === 'error') {
+          alert('⚠️ ' + json.message);
+        } else if (json.status === 'notfound') {
+          console.log('マスター未登録:', item.model);
+        }
+      })
+      .catch(err => console.error('持ち出しAPI エラー:', err));
+  }
 }
 
 function openReturn(idx) {
