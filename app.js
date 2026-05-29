@@ -1,3 +1,4 @@
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzYFcCl9VSZVF3eyuxBlGpxCtYH1G4Nmnt22WgfBAsNR1iLjOWeK4NufAszBPKvxDKC/exec';
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
   'PARTIAL':   {cls:'s-partial',icon:'ti-circle-half'},
@@ -148,6 +149,44 @@ function badge(st) {
 // ============================================================
 // メイン描画: 現在のタブに応じて描画
 // ============================================================
+
+// スプレッドシートから在庫データを取得
+async function fetchFromSpreadsheet() {
+  try {
+    const res = await fetch(GAS_API_URL + '?action=inventory');
+    const json = await res.json();
+    if (json.status === 'ok' && json.data.length > 0) {
+      inv = json.data.map(function(r) {
+        return {
+          cat: r.cat, maker: r.maker, model: r.model,
+          note: r.note, total: parseInt(r.total) || 0,
+          out: parseInt(r.out) || 0, special: 0,
+          status: r.status || 'IN',
+        };
+      });
+    }
+
+    const res2 = await fetch(GAS_API_URL + '?action=out');
+    const json2 = await res2.json();
+    if (json2.status === 'ok') {
+      outItems = json2.data.map(function(r, i) {
+        const invIdx = inv.findIndex(function(item) {
+          return item.model.includes(r.model) || r.model.includes(item.model);
+        });
+        return {
+          id: i, invIdx: invIdx, model: r.model,
+          qty: parseInt(r.qty) || 0, project: r.project,
+          staff: r.staff, returnDate: r.dateReturn, date: r.date,
+        };
+      });
+    }
+    render();
+  } catch(e) {
+    console.error('スプレッドシート取得エラー:', e);
+    render();
+  }
+}
+
 function render() {
   renderStats();
   renderCats();
@@ -609,4 +648,8 @@ function checkAutoReturn() {
 }
 setInterval(checkAutoReturn,60000);
 
-render();
+// 起動時にスプレッドシートからデータ取得
+fetchFromSpreadsheet();
+// 5分ごとに自動更新
+setInterval(fetchFromSpreadsheet, 300000);
+setInterval(checkAutoReturn, 60000);
