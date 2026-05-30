@@ -892,7 +892,11 @@ function renderDashboard() {
       if (!isNaN(d)) {
         const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
         if (!dateMap[key]) dateMap[key] = [];
-        dateMap[key].push(o.project || '（案件名未入力）');
+        const proj = o.project || '（案件名未入力）';
+        // 同じ案件名は1回だけ追加
+        if (!dateMap[key].includes(proj)) {
+          dateMap[key].push(proj);
+        }
       }
     } catch(e) {}
     // 返却予定日も表示
@@ -902,8 +906,9 @@ function renderDashboard() {
         if (!isNaN(rd)) {
           const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
           if (!dateMap[rkey]) dateMap[rkey] = [];
-          if (!dateMap[rkey].includes('返却: ' + (o.project||'未入力'))) {
-            dateMap[rkey].push('返却: ' + (o.project || '未入力'));
+          const retLabel = '返却: ' + (o.project || '未入力');
+          if (!dateMap[rkey].includes(retLabel)) {
+            dateMap[rkey].push(retLabel);
           }
         }
       } catch(e) {}
