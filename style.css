@@ -163,3 +163,33 @@ tr:hover td { background: var(--bg3); }
 /* ===== コンボボックス（選択＋直接入力） ===== */
 .combo-wrap { display: flex; flex-direction: column; gap: 5px; }
 .combo-wrap select { font-family: var(--font); font-size: 12px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); }
+
+/* ===== ダッシュボード ===== */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .dash-grid { grid-template-columns: 1fr; } }
+.dash-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.dash-card-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 0.5px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); }
+.dash-card-head i { font-size: 16px; color: var(--text2); }
+
+/* カレンダー */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 10px; }
+.cal-head { text-align: center; font-size: 11px; font-weight: 700; color: var(--text2); padding: 4px 0; }
+.cal-cell { min-height: 52px; padding: 3px; border-radius: var(--radius); font-size: 11px; position: relative; }
+.cal-cell.empty { background: none; }
+.cal-cell.today .cal-day { background: var(--text); color: var(--bg); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.cal-cell.has-event { background: var(--bg3); }
+.cal-day { font-size: 11px; font-weight: 500; color: var(--text); display: block; margin-bottom: 2px; }
+.cal-event { display: block; font-size: 9px; padding: 1px 3px; border-radius: 3px; background: var(--info-bg); color: var(--info-text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-event.ret { background: var(--success-bg); color: var(--success-text); }
+.cal-legend { display: flex; gap: 8px; padding: 8px 14px; border-top: 0.5px solid var(--border); }
+.cal-legend .cal-event { font-size: 11px; padding: 2px 8px; }
+
+/* レポート */
+.rep-list { padding: 10px 14px; }
+.rep-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid var(--border); }
+.rep-row:last-child { border-bottom: none; }
+.rep-rank { font-size: 11px; font-weight: 700; color: var(--text2); min-width: 20px; }
+.rep-name { font-size: 12px; color: var(--text); min-width: 100px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-bar-wrap { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.rep-bar { height: 100%; background: var(--text); border-radius: 4px; transition: width 0.3s; }
+.rep-count { font-size: 12px; font-weight: 700; color: var(--text); min-width: 36px; text-align: right; }
