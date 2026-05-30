@@ -604,6 +604,71 @@ function deleteItem(idx) {
   inv.splice(idx,1); render();
 }
 
+
+function showProjectDetail(project, e) {
+  e.stopPropagation();
+
+  // 該当案件の機材を取得
+  const projectItems = outItems.filter(o =>
+    (o.project || '（案件名未入力）') === project
+  );
+
+  // 履歴からも取得（返却済み含む）
+  const histItems = history.filter(h =>
+    (h.project || '（案件名未入力）') === project
+  );
+
+  const items = projectItems.length > 0 ? projectItems : histItems;
+  if (!items.length) return;
+
+  const dateOut   = items[0].dateOut || items[0].date || '—';
+  const dateRet   = items[0].returnDate || items[0].dateReturn || '—';
+  const staff     = items[0].staff || '—';
+
+  const itemRows = items.map(o =>
+    `<div class="proj-item-row">
+      <span class="proj-item-name">${o.model}</span>
+      <span class="proj-item-qty">×${o.qty}</span>
+    </div>`
+  ).join('');
+
+  const modal = document.getElementById('modal-project-detail');
+  document.getElementById('pd-project').textContent = project;
+  document.getElementById('pd-staff').textContent   = staff;
+  document.getElementById('pd-dateout').textContent = dateOut;
+  document.getElementById('pd-dateret').textContent = dateRet;
+  document.getElementById('pd-items').innerHTML     = itemRows;
+  modal.classList.add('open');
+}
+
+function showProjectDetail(project, ev) {
+  if (ev) ev.stopPropagation();
+  const projectItems = outItems.filter(function(o) {
+    return (o.project || '（案件名未入力）') === project;
+  });
+  const histItems = history.filter(function(h) {
+    return (h.project || '（案件名未入力）') === project;
+  });
+  const items = projectItems.length > 0 ? projectItems : histItems;
+  if (!items.length) return;
+
+  const dateOut = items[0].dateOut || items[0].date || '—';
+  const dateRet = items[0].returnDate || items[0].dateReturn || '—';
+  const staff   = items[0].staff || '—';
+
+  const itemRows = items.map(function(o) {
+    return '<div class="proj-item-row"><span class="proj-item-name">' + o.model + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
+  }).join('');
+
+  document.getElementById('pd-project').textContent = project;
+  document.getElementById('pd-staff').textContent   = staff;
+  document.getElementById('pd-dateout').textContent = dateOut;
+  document.getElementById('pd-dateret').textContent = dateRet;
+  document.getElementById('pd-items').innerHTML     = itemRows;
+  document.getElementById('modal-project-detail').classList.add('open');
+}
+
+
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-backdrop').forEach(b => {
@@ -872,9 +937,12 @@ function renderDashboard() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,2).map(e =>
-      `<div class="cal-event${e.startsWith('返却') ? ' ret' : ''}">${e.length > 8 ? e.slice(0,8)+'…' : e}</div>`
-    ).join('');
+    const eventDots = events.slice(0,2).map(function(e) {
+      const isRet = e.startsWith('返却');
+      const proj = isRet ? e.replace('返却: ','') : e;
+      const label = e.length > 8 ? e.slice(0,8)+'…' : e;
+      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" onclick="showProjectDetail(this.dataset.project,event)" style="cursor:pointer">' + label + '</div>';
+    }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
       ${eventDots}
