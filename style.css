@@ -172,9 +172,9 @@ tr:hover td { background: var(--bg3); }
 .dash-card-head i { font-size: 16px; color: var(--text2); }
 
 /* カレンダー */
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 10px; }
-.cal-head { text-align: center; font-size: 11px; font-weight: 700; color: var(--text2); padding: 4px 0; }
-.cal-cell { min-height: 52px; padding: 3px; border-radius: var(--radius); font-size: 11px; position: relative; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 12px; }
+.cal-head { text-align: center; font-size: 12px; font-weight: 700; color: var(--text2); padding: 6px 0; }
+.cal-cell { min-height: 80px; padding: 4px; border-radius: var(--radius); font-size: 11px; position: relative; }
 .cal-cell.empty { background: none; }
 .cal-cell.today .cal-day { background: var(--text); color: var(--bg); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
 .cal-cell.has-event { background: var(--bg3); }
