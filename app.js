@@ -1,4 +1,4 @@
-const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzYFcCl9VSZVF3eyuxBlGpxCtYH1G4Nmnt22WgfBAsNR1iLjOWeK4NufAszBPKvxDKC/exec';
+const GAS_API_URL = 'ここにGASのURLを貼り付け';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -279,37 +279,74 @@ function renderHistory() {
     container.innerHTML = `<div class="empty">履歴がありません</div>`;
     return;
   }
-  const groups = {};
+
+  // 年月でグループ化
+  const monthGroups = {};
   [...history].reverse().forEach(h => {
-    const key = h.project || '（案件名未入力）';
-    if (!groups[key]) groups[key] = {items:[], staff:h.staff};
-    groups[key].items.push(h);
+    // 日付から年月を取得
+    let ym = '日付不明';
+    try {
+      const d = new Date(h.date);
+      if (!isNaN(d)) {
+        ym = d.getFullYear() + '年' + (d.getMonth()+1) + '月';
+      } else {
+        // 日本語形式の日付を変換
+        const m = String(h.date).match(/(\d+)年(\d+)月/);
+        if (m) ym = m[1] + '年' + parseInt(m[2]) + '月';
+      }
+    } catch(e) {}
+
+    if (!monthGroups[ym]) monthGroups[ym] = {};
+    const project = h.project || '（案件名未入力）';
+    if (!monthGroups[ym][project]) monthGroups[ym][project] = {items:[], staff:h.staff};
+    monthGroups[ym][project].items.push(h);
   });
-  container.innerHTML = Object.entries(groups).map(([project, g]) => {
-    const itemRows = g.items.map(h => {
-      const cls = h.action==='OUT'?'s-out':h.action==='自動返却'||h.action==='一括返却'?'s-info':'s-in';
+
+  container.innerHTML = Object.entries(monthGroups).map(([ym, projects]) => {
+    const projectRows = Object.entries(projects).map(([project, g]) => {
+      const itemRows = g.items.map(h => {
+        const cls = h.action==='OUT'?'s-out':
+          h.action==='自動返却'||h.action==='一括返却'?'s-info':
+          h.action==='持ち出し中'?'s-out':'s-in';
+        const actionLabel = h.action==='持ち出し中' ? 'OUT' : h.action;
+        return `
+          <div class="proj-item-row">
+            <span style="font-size:11px;color:var(--text2);min-width:120px">${h.date}</span>
+            <span class="proj-item-name">${h.model}</span>
+            <span class="proj-item-qty">×${h.qty}</span>
+            <span class="badge ${cls}" style="font-size:10px">${actionLabel}</span>
+            <span style="font-size:11px;color:var(--text2)">${h.note||''}</span>
+          </div>`;
+      }).join('');
       return `
-        <div class="proj-item-row">
-          <span style="font-size:11px;color:var(--text2);min-width:130px">${h.date}</span>
-          <span class="proj-item-name">${h.model}</span>
-          <span class="proj-item-qty">×${h.qty}</span>
-          <span class="badge ${cls}" style="font-size:10px">${h.action}</span>
-          <span style="font-size:11px;color:var(--text2)">${h.note||''}</span>
+        <div class="proj-group" style="margin:6px 0 0 0">
+          <div class="proj-group-head" onclick="toggleGroup(this)" style="background:var(--bg)">
+            <div class="proj-group-left">
+              <i class="ti ti-chevron-down proj-chevron"></i>
+              <span class="proj-group-name" style="font-size:13px">${project}</span>
+              <span class="proj-group-meta">${g.staff||''}</span>
+            </div>
+            <div class="proj-group-right">
+              <span class="proj-count">${g.items.length}件</span>
+            </div>
+          </div>
+          <div class="proj-group-body">${itemRows}</div>
         </div>`;
     }).join('');
+
+    const totalItems = Object.values(projects).reduce((s,g)=>s+g.items.length,0);
     return `
-      <div class="proj-group">
+      <div class="proj-group" style="margin-bottom:10px">
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
             <i class="ti ti-chevron-down proj-chevron"></i>
-            <span class="proj-group-name">${project}</span>
-            <span class="proj-group-meta">${g.staff||''}</span>
+            <span class="proj-group-name"><i class="ti ti-calendar" style="font-size:14px;margin-right:4px"></i>${ym}</span>
           </div>
           <div class="proj-group-right">
-            <span class="proj-count">${g.items.length}件</span>
+            <span class="proj-count">${Object.keys(projects).length}案件 / ${totalItems}件</span>
           </div>
         </div>
-        <div class="proj-group-body">${itemRows}</div>
+        <div class="proj-group-body" style="padding:6px 8px">${projectRows}</div>
       </div>`;
   }).join('');
 }
@@ -725,6 +762,27 @@ function fetchFromSpreadsheet() {
           note:    o.returnDate ? '返却予定:' + o.returnDate : '',
         };
       });
+    }
+
+    // 全履歴（返却済み含む）をスプレッドシートから取得
+    if (json.history && json.history.length > 0) {
+      const gasHistory = json.history.map(function(h) {
+        return {
+          date:    h.date    || '',
+          project: h.project || '',
+          staff:   h.staff   || '',
+          model:   h.model   || '',
+          qty:     parseInt(h.qty) || 0,
+          action:  h.action  || 'OUT',
+          note:    h.note    || '',
+        };
+      });
+      // ローカルの履歴とマージ（重複除去）
+      const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
+      const localOnly = history.filter(function(h) {
+        return !existingModels.has(h.date + h.model);
+      });
+      history = gasHistory.concat(localOnly);
     }
 
     render();
