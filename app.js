@@ -943,7 +943,7 @@ function renderDashboard() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,2).map(function(e) {
+    const eventDots = events.slice(0,5).map(function(e) {
       const isRet = e.startsWith('返却');
       const proj = isRet ? e.replace('返却: ','') : e;
       const label = e.length > 8 ? e.slice(0,8)+'…' : e;
