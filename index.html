@@ -40,6 +40,7 @@
     <button class="tab" onclick="switchTab('out',this)">持ち出し中</button>
     <button class="tab" onclick="switchTab('special',this)">修理・レンタル・不在</button>
     <button class="tab" onclick="switchTab('history',this)">履歴</button>
+    <button class="tab" onclick="switchTab('dashboard',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> ダッシュボード</button>
   </nav>
 
   <div id="view-all">
@@ -87,6 +88,10 @@
 
   <div id="view-history" style="display:none">
     <div id="hist-container"></div>
+  </div>
+
+  <div id="view-dashboard" style="display:none">
+    <div id="dashboard-container"></div>
   </div>
 </div>
 
