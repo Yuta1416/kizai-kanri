@@ -189,5 +189,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="app.js"></script>
+<div class="modal-backdrop" id="modal-project-detail">
+  <div class="modal">
+    <h3><i class="ti ti-package" aria-hidden="true"></i> <span id="pd-project"></span></h3>
+    <div class="fr">
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:8px">
+        <span><i class="ti ti-user" aria-hidden="true"></i> <span id="pd-staff"></span></span>
+        <span><i class="ti ti-arrow-up-right" aria-hidden="true"></i> <span id="pd-dateout"></span></span>
+        <span><i class="ti ti-arrow-down-left" aria-hidden="true"></i> <span id="pd-dateret"></span></span>
+      </div>
+      <div id="pd-items"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('modal-project-detail')">閉じる</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
