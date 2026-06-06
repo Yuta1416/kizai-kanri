@@ -1017,3 +1017,55 @@ fetchFromSpreadsheet();
 // 5分ごとに自動更新
 setInterval(fetchFromSpreadsheet, 300000);
 setInterval(checkAutoReturn, 60000);
+
+function debugExcel() {
+  var files = listDropboxFiles(DROPBOX_FOLDER);
+  if (!files || files.length === 0) { Logger.log('ファイルなし'); return; }
+
+  var file = files[0];
+  var downloadUrl = 'https://content.dropboxapi.com/2/files/download';
+  var options = {
+    method: 'post',
+    headers: {
+      Authorization: 'Bearer ' + DROPBOX_TOKEN,
+      'Dropbox-API-Arg': JSON.stringify({ path: file.path_lower })
+    },
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(downloadUrl, options);
+  var blob = response.getBlob().setName(file.name);
+
+  var boundary = 'boundary_kizai';
+  var metadata = { title: 'temp_debug', mimeType: 'application/vnd.google-apps.spreadsheet' };
+  var uploadOptions = {
+    method: 'post',
+    contentType: 'multipart/related; boundary=' + boundary,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: Utilities.newBlob(
+      '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' +
+      JSON.stringify(metadata) + '\r\n--' + boundary + '\r\n' +
+      'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n'
+    ).getBytes().concat(blob.getBytes()).concat(
+      Utilities.newBlob('\r\n--' + boundary + '--').getBytes()
+    ),
+    muteHttpExceptions: true
+  };
+
+  var uploadResponse = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&convert=true',
+    uploadOptions
+  );
+  var convertedId = JSON.parse(uploadResponse.getContentText()).id;
+  var tempSs = SpreadsheetApp.openById(convertedId);
+  var sheet = tempSs.getSheets()[0];
+
+  // E列（5列目）の6〜15行目を確認
+  Logger.log('=== E列（数量）の値 ===');
+  for (var row = 6; row <= 15; row++) {
+    var val = getCellValue(sheet, row, 5);
+    var model = getCellValue(sheet, row, 3);
+    Logger.log('行' + row + ' E列:' + val + ' C列(型番):' + model);
+  }
+
+  DriveApp.getFileById(convertedId).setTrashed(true);
+}
