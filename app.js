@@ -281,9 +281,15 @@ function renderHistory() {
     return;
   }
 
+  const q = (document.getElementById('hist-srch')?.value || '').toLowerCase();
+
   // 年月でグループ化
   const monthGroups = {};
   [...history].reverse().forEach(h => {
+    if (q) {
+      const hit = [h.project, h.staff, h.model, h.note].some(v => String(v||'').toLowerCase().includes(q));
+      if (!hit) return;
+    }
     // 日付から年月を取得
     let ym = '日付不明';
     try {
