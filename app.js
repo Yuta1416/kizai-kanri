@@ -171,44 +171,102 @@ function renderStats() {
     <div class="stat"><div class="stat-label">長期不在</div><div class="stat-val" style="color:var(--gray-text)">${absC}</div></div>`;
 }
 
+let currentCat = '';
+
 function renderCats() {
-  const sel=document.getElementById('catF'), cur=sel.value;
-  const cats=[...new Set(inv.map(i=>i.cat))].sort();
-  sel.innerHTML='<option value="">すべてのカテゴリ</option>'+cats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+  const sidebar = document.getElementById('cat-sidebar');
+  if (!sidebar) return;
+  const cats = [...new Set(inv.map(i => i.cat))];
+  const counts = {};
+  cats.forEach(c => counts[c] = inv.filter(i => i.cat === c).length);
+  sidebar.innerHTML =
+    `<div class="cat-sidebar-item${currentCat===''?' on':''}" onclick="selectCat('')">すべて <span class="cat-sidebar-count">${inv.length}</span></div>` +
+    cats.map(c => `<div class="cat-sidebar-item${currentCat===c?' on':''}" onclick="selectCat('${c}')">${c} <span class="cat-sidebar-count">${counts[c]}</span></div>`).join('');
 }
 
+function selectCat(cat) {
+  currentCat = cat;
+  render();
+}
+
+const CAT_ICONS = {
+  'SP':'ti-speakerphone','SPスタンド':'ti-line-height','SP付属品':'ti-puzzle',
+  'POWRACK':'ti-server','POWAMP':'ti-bolt','Mixer':'ti-adjustments-horizontal',
+  'STAGERACK':'ti-box','switchHUB':'ti-network','Player':'ti-player-play',
+  'DISTRIB':'ti-share','プレスBOX':'ti-broadcast','WL':'ti-wifi',
+  'Microphone':'ti-microphone','ウインドスクリーン':'ti-wind','DI':'ti-plug',
+  'MICスタンド':'ti-line-dashed','卓上スタンド':'ti-table','カフBOX':'ti-toggle-left',
+  'マルチケーブル':'ti-cable','Clear-Com':'ti-headset','インカム':'ti-headset',
+  'トランシーバー':'ti-radio','タブレット':'ti-device-tablet','機器':'ti-device-desktop',
+  'SPケーブル':'ti-cable','MICケーブル':'ti-cable','変換ケーブル':'ti-transfer',
+  '電源ケーブル':'ti-plug','Cat5eケーブル':'ti-network',
+  '養生':'ti-barrier-block','ラッシングベルト':'ti-link','マット':'ti-square',
+  '台車':'ti-forklift','脚立':'ti-stairs','単管':'ti-line','その他資材':'ti-package',
+};
+
 function renderInventory() {
-  const srch=document.getElementById('srch').value.toLowerCase();
-  const catF=document.getElementById('catF').value;
-  const stF=document.getElementById('stF').value;
-  const filtered=inv.filter(item=>{
-    const st=calcSt(item);
-    const m=!srch||[item.cat,item.maker,item.model,item.note].some(v=>v.toLowerCase().includes(srch));
-    return m&&(!catF||item.cat===catF)&&(!stF||st===stF);
+  const srch = document.getElementById('srch').value.toLowerCase();
+  const stF  = document.getElementById('stF').value;
+
+  const filtered = inv.filter(item => {
+    const st = calcSt(item);
+    const m = !srch || [item.cat,item.maker,item.model,item.note].some(v=>String(v).toLowerCase().includes(srch));
+    return m && (!currentCat || item.cat===currentCat) && (!stF || st===stF);
   });
-  const tb=document.getElementById('tbl-all');
-  if(!filtered.length){tb.innerHTML=`<tr><td colspan="8" class="empty">該当なし</td></tr>`;return;}
-  tb.innerHTML=filtered.map(item=>{
-    const idx=inv.indexOf(item),st=calcSt(item),av=avail(item);
-    const noteHtml=item.note
-      ?`<span class="note-cell has" title="${item.note}"><i class="ti ti-notes"></i> ${item.note}</span>`
-      :`<span class="note-cell">—</span>`;
-    const canOut=av>0&&!['修理中','レンタル中','長期不在'].includes(st);
-    return `<tr>
-      <td style="color:var(--text2);font-size:11px">${item.cat}</td>
-      <td style="font-size:11px">${item.maker}</td>
-      <td style="font-weight:700">${item.model}</td>
-      <td style="text-align:center">${item.total}</td>
-      <td style="text-align:center;font-weight:700;color:${av===0?'var(--danger-text)':'var(--text)'}">${av}</td>
-      <td>${badge(st)}</td>
-      <td>${noteHtml}<button class="act" style="padding:2px 5px;font-size:10px" onclick="openNoteModal(${idx})"><i class="ti ti-pencil"></i></button></td>
-      <td>
-        ${canOut?`<button class="act" onclick="openCheckout(${idx})"><i class="ti ti-arrow-up-right"></i></button>`:''}
-        ${item.out>0?`<button class="act" onclick="openReturn(${idx})"><i class="ti ti-arrow-down-left"></i></button>`:''}
-        ${av>0?`<button class="act" onclick="openSpecial(${idx})"><i class="ti ti-tool"></i></button>`:''}
-        <button class="act d" onclick="deleteItem(${idx})"><i class="ti ti-trash"></i></button>
-      </td></tr>`;
+
+  const main = document.getElementById('card-main');
+  if (!filtered.length) { main.innerHTML=`<div class="empty">該当なし</div>`; return; }
+
+  const groups = {};
+  filtered.forEach(item => {
+    if (!groups[item.cat]) groups[item.cat] = [];
+    groups[item.cat].push(item);
+  });
+
+  main.innerHTML = Object.entries(groups).map(([cat, items]) => {
+    const icon = CAT_ICONS[cat] || 'ti-package';
+    const cards = items.map(item => {
+      const idx = inv.indexOf(item), st = calcSt(item), av = avail(item);
+      const canOut = av>0 && !['修理中','レンタル中','長期不在'].includes(st);
+      const cls = st==='OUT'?'card-out':st==='PARTIAL'?'card-partial':'';
+      const cntCls = st==='OUT'||av===0?'c-red':st==='PARTIAL'?'c-amber':'c-green';
+      return `
+        <div class="item-card ${cls}" onclick="openItemDetail(${idx})">
+          <div class="item-card-icon"><i class="ti ${icon}" aria-hidden="true"></i></div>
+          <div class="item-card-info">
+            <div class="item-card-name">${item.model}</div>
+            <div class="item-card-maker">${item.maker}</div>
+            ${badge(st)}
+          </div>
+          <div class="item-card-right">
+            <div class="item-card-count ${cntCls}">${av}</div>
+            <div class="item-card-total">/ ${item.total}</div>
+          </div>
+        </div>`;
+    }).join('');
+    return `<div class="card-section-label">${cat}</div><div class="card-grid">${cards}</div>`;
   }).join('');
+}
+
+function openItemDetail(idx) {
+  const item = inv[idx];
+  const st = calcSt(item);
+  const av = avail(item);
+  const canOut = av>0 && !['修理中','レンタル中','長期不在'].includes(st);
+  document.getElementById('detail-name').textContent = item.model;
+  document.getElementById('detail-maker').textContent = item.maker + ' / ' + item.cat;
+  document.getElementById('detail-badge').innerHTML = badge(st);
+  document.getElementById('detail-counts').innerHTML =
+    `残数: <strong>${av}</strong> / 総数: ${item.total}` + (item.out>0?` / 持ち出し中: ${item.out}`:'');
+  document.getElementById('detail-note').textContent = item.note || '—';
+  const acts = document.getElementById('detail-actions');
+  acts.innerHTML =
+    (canOut?`<button class="btn btn-primary" onclick="closeModal('modal-detail');openCheckout(${idx})"><i class="ti ti-arrow-up-right"></i> 持ち出し</button>`:'') +
+    (item.out>0?`<button class="btn" onclick="closeModal('modal-detail');openReturn(${idx})"><i class="ti ti-arrow-down-left"></i> 返却</button>`:'') +
+    (av>0?`<button class="btn" onclick="closeModal('modal-detail');openSpecial(${idx})"><i class="ti ti-tool"></i> 特殊</button>`:'') +
+    `<button class="btn" onclick="closeModal('modal-detail');openNoteModal(${idx})"><i class="ti ti-pencil"></i> 備考</button>` +
+    `<button class="btn act d" onclick="closeModal('modal-detail');deleteItem(${idx})"><i class="ti ti-trash"></i></button>`;
+  openModal('modal-detail');
 }
 
 function renderOut() {

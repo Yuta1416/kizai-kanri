@@ -52,7 +52,6 @@
   <div id="view-all">
     <div class="controls">
       <input type="text" id="srch" placeholder="検索（機材名・メーカー・備考）" oninput="render()">
-      <select id="catF" onchange="render()"><option value="">すべてのカテゴリ</option></select>
       <select id="stF" onchange="render()">
         <option value="">すべてのステータス</option>
         <option value="IN">IN</option><option value="PARTIAL">PARTIAL</option>
@@ -60,16 +59,9 @@
         <option value="レンタル中">レンタル中</option><option value="長期不在">長期不在</option>
       </select>
     </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th style="width:13%">カテゴリ</th><th style="width:13%">メーカー</th>
-          <th style="width:20%">型番・品名</th><th style="width:6%">総数</th>
-          <th style="width:6%">残数</th><th style="width:12%">ステータス</th>
-          <th style="width:18%">備考</th><th style="width:12%">操作</th>
-        </tr></thead>
-        <tbody id="tbl-all"></tbody>
-      </table>
+    <div class="inv-layout">
+      <div class="cat-sidebar" id="cat-sidebar"></div>
+      <div class="card-main" id="card-main"></div>
     </div>
   </div>
 
@@ -101,6 +93,21 @@
 
   <div id="view-dashboard" style="display:none">
     <div id="dashboard-container"></div>
+  </div>
+</div>
+
+<!-- Item detail modal -->
+<div class="modal-backdrop" id="modal-detail">
+  <div class="modal">
+    <h3><i class="ti ti-package"></i> <span id="detail-name"></span></h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px" id="detail-maker"></div>
+    <div style="margin-bottom:8px" id="detail-badge"></div>
+    <div style="font-size:14px;margin-bottom:8px" id="detail-counts"></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">備考: <span id="detail-note"></span></div>
+    <div class="modal-actions" id="detail-actions"></div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn" onclick="closeModal('modal-detail')">閉じる</button>
+    </div>
   </div>
 </div>
 
