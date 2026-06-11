@@ -1,18 +1,22 @@
-const CACHE_NAME = 'kizai-cache-v1';
-const ASSETS = [
+const CACHE_NAME = 'kizai-cache-v2';
+
+// 確実にキャッシュしたいローカルアセット
+const CORE_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
-  'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=DM+Mono:wght@500&display=swap',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
-// インストール時にキャッシュ
+// インストール時：ローカルアセットのみキャッシュ（失敗しても続行）
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(CORE_ASSETS.map(url => cache.add(url)))
+    )
   );
   self.skipWaiting();
 });
@@ -27,11 +31,29 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// ネットワーク優先・失敗時はキャッシュ
 self.addEventListener('fetch', event => {
-  // GASのAPIはキャッシュしない
-  if (event.request.url.includes('script.google.com')) return;
+  const url = event.request.url;
 
+  // GAS APIはキャッシュしない（オフライン時はスキップ）
+  if (url.includes('script.google.com')) return;
+
+  // ローカルアセット：キャッシュ優先（オフラインでも動く）
+  const isLocal = url.startsWith(self.location.origin);
+  if (isLocal) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // 外部CDN（fonts、icons）：ネットワーク優先、失敗時はキャッシュ
   event.respondWith(
     fetch(event.request)
       .then(response => {
