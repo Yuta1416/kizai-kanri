@@ -457,17 +457,26 @@ function bulkReturn(project, e) {
   }
   render();
 
-  // スプレッドシートにも反映（JSONP）
+  // スプレッドシートにも反映（JSONP）、完了後にデータ再取得
   if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
     const cbName2 = 'cb_' + Date.now();
     window[cbName2] = function(json) {
       delete window[cbName2];
       const el2 = document.getElementById('jsonp_' + cbName2);
       if (el2) el2.remove();
-      if (json.status === 'ok') console.log('返却処理完了:', project);
+      if (json.status === 'ok') {
+        localStorage.removeItem(CACHE_KEY);
+        fetchFromSpreadsheet();
+      } else {
+        alert('返却の保存に失敗しました。再度お試しください。');
+      }
     };
     const script2 = document.createElement('script');
     script2.id = 'jsonp_' + cbName2;
+    script2.onerror = function() {
+      delete window[cbName2]; script2.remove();
+      alert('返却の保存に失敗しました。再度お試しください。');
+    };
     script2.src = GAS_API_URL + '?action=return&project=' + encodeURIComponent(project) + '&callback=' + cbName2;
     document.body.appendChild(script2);
   }
