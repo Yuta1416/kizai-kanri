@@ -832,96 +832,123 @@ function handleFile(e) {
 // ============================================================
 // スプレッドシートから在庫データを取得（JSONP）
 // ============================================================
+function showLoading(on) {
+  const el = document.getElementById('loading-screen');
+  if (!el) return;
+  if (on) el.classList.remove('hidden');
+  else    el.classList.add('hidden');
+}
+
+const CACHE_KEY = 'kizai_data_cache';
+function saveCache(json) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(json)); } catch(e) {} }
+function loadCache()     { try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch(e) { return null; } }
+
+function applyData(json) {
+  if (json.inventory && json.inventory.length > 0) {
+    inv = json.inventory.map(function(r) {
+      const total  = parseInt(r.total) || 0;
+      const stock  = parseInt(r.stock) || 0;
+      const out    = parseInt(r.out)   || 0;
+      const status = String(r.status || 'IN');
+      const isSpecial = ['修理中','レンタル中','長期不在'].includes(status);
+      const special = isSpecial ? Math.max(0, total - stock - out) : 0;
+      return {
+        cat:     String(r.cat   || ''),
+        maker:   String(r.maker || ''),
+        model:   String(r.model || ''),
+        note:    String(r.note  || ''),
+        total:   total,
+        out:     out,
+        special: special,
+        status:  status,
+      };
+    });
+  }
+
+  if (json.out && json.out.length > 0) {
+    outItems = json.out
+      .filter(function(r) { return r.model && String(r.model) !== ''; })
+      .map(function(r, i) {
+        const rModel = String(r.model || '');
+        const invIdx = inv.findIndex(function(item) {
+          const iModel = String(item.model || '');
+          return rModel.includes(iModel) || iModel.includes(rModel);
+        });
+        return {
+          id:         i,
+          invIdx:     invIdx >= 0 ? invIdx : 0,
+          model:      rModel,
+          qty:        parseInt(r.qty) || 0,
+          project:    String(r.project    || ''),
+          staff:      String(r.staff      || ''),
+          returnDate: String(r.dateReturn || ''),
+          date:       String(r.date       || ''),
+        };
+      });
+
+    history = outItems.map(function(o) {
+      return {
+        date:    o.date,
+        project: o.project,
+        staff:   o.staff,
+        model:   o.model,
+        qty:     o.qty,
+        action:  'OUT',
+        note:    o.returnDate ? '返却予定:' + o.returnDate : '',
+      };
+    });
+  }
+
+  if (json.history && json.history.length > 0) {
+    const gasHistory = json.history.map(function(h) {
+      return {
+        date:    h.date    || '',
+        project: h.project || '',
+        staff:   h.staff   || '',
+        model:   h.model   || '',
+        qty:     parseInt(h.qty) || 0,
+        action:  h.action  || 'OUT',
+        note:    h.note    || '',
+      };
+    });
+    const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
+    const localOnly = history.filter(function(h) {
+      return !existingModels.has(h.date + h.model);
+    });
+    history = gasHistory.concat(localOnly);
+  }
+}
+
 function fetchFromSpreadsheet() {
   if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') {
     render();
+    showLoading(false);
     return;
   }
+
+  // キャッシュがあれば即表示してローディングを隠す
+  const cached = loadCache();
+  if (cached) {
+    applyData(cached);
+    render();
+    if (currentTab === 'dashboard') renderDashboard();
+    showLoading(false);
+    document.getElementById('cache-banner').classList.add('show');
+  }
+
   const cbName = 'gasCallback_' + Date.now();
   window[cbName] = function(json) {
     delete window[cbName];
     const el = document.getElementById('jsonp_' + cbName);
     if (el) el.remove();
 
-    if (json.inventory && json.inventory.length > 0) {
-      inv = json.inventory.map(function(r) {
-        const total  = parseInt(r.total) || 0;
-        const stock  = parseInt(r.stock) || 0;
-        const out    = parseInt(r.out)   || 0;
-        const status = String(r.status || 'IN');
-        // 修理中・レンタル中・長期不在の場合はspecialを計算
-        const isSpecial = ['修理中','レンタル中','長期不在'].includes(status);
-        const special = isSpecial ? Math.max(0, total - stock - out) : 0;
-        return {
-          cat:     String(r.cat   || ''),
-          maker:   String(r.maker || ''),
-          model:   String(r.model || ''),
-          note:    String(r.note  || ''),
-          total:   total,
-          out:     out,
-          special: special,
-          status:  status,
-        };
-      });
-    }
-
-    if (json.out && json.out.length > 0) {
-      outItems = json.out
-        .filter(function(r) { return r.model && String(r.model) !== ''; })
-        .map(function(r, i) {
-          const rModel = String(r.model || '');
-          const invIdx = inv.findIndex(function(item) {
-            const iModel = String(item.model || '');
-            return rModel.includes(iModel) || iModel.includes(rModel);
-          });
-          return {
-            id:         i,
-            invIdx:     invIdx >= 0 ? invIdx : 0,
-            model:      rModel,
-            qty:        parseInt(r.qty) || 0,
-            project:    String(r.project    || ''),
-            staff:      String(r.staff      || ''),
-            returnDate: String(r.dateReturn || ''),
-            date:       String(r.date       || ''),
-          };
-        });
-
-      history = outItems.map(function(o) {
-        return {
-          date:    o.date,
-          project: o.project,
-          staff:   o.staff,
-          model:   o.model,
-          qty:     o.qty,
-          action:  'OUT',
-          note:    o.returnDate ? '返却予定:' + o.returnDate : '',
-        };
-      });
-    }
-
-    // 全履歴（返却済み含む）をスプレッドシートから取得
-    if (json.history && json.history.length > 0) {
-      const gasHistory = json.history.map(function(h) {
-        return {
-          date:    h.date    || '',
-          project: h.project || '',
-          staff:   h.staff   || '',
-          model:   h.model   || '',
-          qty:     parseInt(h.qty) || 0,
-          action:  h.action  || 'OUT',
-          note:    h.note    || '',
-        };
-      });
-      // ローカルの履歴とマージ（重複除去）
-      const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
-      const localOnly = history.filter(function(h) {
-        return !existingModels.has(h.date + h.model);
-      });
-      history = gasHistory.concat(localOnly);
-    }
+    applyData(json);
+    saveCache(json);
 
     render();
     if (currentTab === 'dashboard') renderDashboard();
+    showLoading(false);
+    document.getElementById('cache-banner').classList.remove('show');
   };
 
   const script = document.createElement('script');
@@ -931,7 +958,8 @@ function fetchFromSpreadsheet() {
     console.error('GAS接続エラー');
     delete window[cbName];
     script.remove();
-    render();
+    if (!cached) render();
+    showLoading(false);
   };
   document.body.appendChild(script);
 }
@@ -1110,7 +1138,8 @@ function checkAutoReturn() {
   render();
 }
 
-// 起動時にスプレッドシートからデータ取得
+// 起動時
+showLoading(true);
 fetchFromSpreadsheet();
 // 5分ごとに自動更新
 setInterval(fetchFromSpreadsheet, 300000);

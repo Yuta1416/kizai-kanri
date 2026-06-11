@@ -228,3 +228,29 @@ tr:hover td { background: var(--bg3); }
 .rep-bar-wrap { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
 .rep-bar { height: 100%; background: var(--text); border-radius: 4px; transition: width 0.3s; }
 .rep-count { font-size: 12px; font-weight: 700; color: var(--text); min-width: 36px; text-align: right; }
+
+/* ローディング画面 */
+#loading-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; z-index: 9999; transition: opacity 0.3s;
+}
+#loading-screen.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-label { font-size: 13px; color: var(--text2); }
+
+/* キャッシュバナー */
+#cache-banner {
+  display: none; align-items: center; justify-content: space-between;
+  background: var(--info-bg); color: var(--info-text);
+  font-size: 12px; padding: 6px 14px; border-radius: var(--radius);
+  margin-bottom: 10px; gap: 8px;
+}
+#cache-banner.show { display: flex; }

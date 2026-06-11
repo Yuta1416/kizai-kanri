@@ -16,6 +16,10 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-label">読み込み中...</div>
+</div>
 <div class="app">
   <header class="topbar">
     <div class="topbar-left">
@@ -30,6 +34,10 @@
     </div>
   </header>
 
+  <div id="cache-banner">
+    <span><i class="ti ti-database"></i> キャッシュから表示中 — バックグラウンドで更新しています</span>
+    <button class="btn" style="font-size:11px;padding:2px 8px" onclick="document.getElementById('cache-banner').classList.remove('show')">閉じる</button>
+  </div>
   <div class="stats" id="stats"></div>
 
   <div class="legend">
