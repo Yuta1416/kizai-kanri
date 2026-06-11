@@ -1145,6 +1145,35 @@ function checkAutoReturn() {
   render();
 }
 
+function downloadPickupList() {
+  const btn = document.getElementById('pickup-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '取得中...'; }
+  const cbName = 'pickupCallback_' + Date.now();
+  window[cbName] = function(json) {
+    delete window[cbName];
+    const el = document.getElementById('jsonp_' + cbName);
+    if (el) el.remove();
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> 持ち出しリスト'; }
+    if (json.status !== 'ok') { alert('取得失敗: ' + (json.message || 'エラー')); return; }
+    const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = json.filename || '持ち出しリスト.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const script = document.createElement('script');
+  script.id = 'jsonp_' + cbName;
+  script.src = GAS_API_URL + '?action=pickuplist&callback=' + cbName;
+  script.onerror = function() {
+    delete window[cbName]; script.remove();
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> 持ち出しリスト'; }
+    alert('取得に失敗しました');
+  };
+  document.body.appendChild(script);
+}
+
 function reloadData() {
   const btn = document.getElementById('reload-btn');
   if (btn) { btn.disabled = true; btn.querySelector('i').classList.add('spin-icon'); }
