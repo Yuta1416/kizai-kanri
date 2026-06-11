@@ -832,11 +832,18 @@ function handleFile(e) {
 // ============================================================
 // スプレッドシートから在庫データを取得（JSONP）
 // ============================================================
+let _loadingStart = Date.now();
 function showLoading(on) {
   const el = document.getElementById('loading-screen');
   if (!el) return;
-  if (on) el.classList.remove('hidden');
-  else    el.classList.add('hidden');
+  if (on) {
+    _loadingStart = Date.now();
+    el.classList.remove('hidden');
+  } else {
+    const elapsed = Date.now() - _loadingStart;
+    const delay = Math.max(0, 800 - elapsed);
+    setTimeout(() => el.classList.add('hidden'), delay);
+  }
 }
 
 const CACHE_KEY = 'kizai_data_cache';

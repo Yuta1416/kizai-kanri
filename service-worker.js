@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kizai-cache-v2';
+const CACHE_NAME = 'kizai-cache-v3';
 
 // 確実にキャッシュしたいローカルアセット
 const CORE_ASSETS = [
