@@ -434,7 +434,7 @@ function switchTab(tab, el) {
     if (v) v.style.display = t===tab ? 'block' : 'none';
   });
   render();
-  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
   if (tab === 'all') renderTopPage();
 }
 
@@ -1320,6 +1320,59 @@ function renderTopPage() {
       </div>
     </div>
   `;
+
+  // 今後1週間の予約を右カラムに表示
+  const upcomingEl = document.getElementById('upcoming-content');
+  if (upcomingEl) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const week = new Date(today); week.setDate(week.getDate() + 7);
+    const dateLabel = d => {
+      const dd = new Date(d);
+      if (isNaN(dd)) return '';
+      const diff = Math.round((dd - today) / 86400000);
+      const label = diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
+      return `${dd.getMonth()+1}/${dd.getDate()}（${['日','月','火','水','木','金','土'][dd.getDay()]}）${label}`;
+    };
+
+    // reservations（予約）＋ outItems（持ち出し中）の返却予定を合算
+    const items = [];
+    (reservations || []).forEach(r => {
+      const d = new Date(r.dateOut);
+      if (!isNaN(d) && d >= today && d <= week) {
+        items.push({ date: d, project: r.project || '（未入力）', staff: r.staff || '', items: r.itemName || '', type: 'reserve' });
+      }
+    });
+    (outItems || []).forEach(o => {
+      const d = new Date(o.dateReturn || o.dateOut);
+      if (!isNaN(d) && d >= today && d <= week) {
+        items.push({ date: d, project: o.project || '（未入力）', staff: o.staff || '', items: o.itemName || '', type: 'out' });
+      }
+    });
+    items.sort((a,b) => a.date - b.date);
+
+    // 案件ごとにまとめる
+    const grouped = {};
+    items.forEach(item => {
+      const key = item.project + '|' + item.date.toDateString();
+      if (!grouped[key]) grouped[key] = { ...item, itemList: [] };
+      if (item.items) grouped[key].itemList.push(item.items);
+    });
+
+    const rows = Object.values(grouped);
+    if (rows.length === 0) {
+      upcomingEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">今後1週間の予約はありません</div>';
+    } else {
+      upcomingEl.innerHTML = rows.map(r => `
+        <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start">
+          <div style="background:${r.type==='reserve'?'var(--info-bg)':'var(--warn-bg)'};color:${r.type==='reserve'?'var(--info-text)':'var(--warn-text)'};border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${dateLabel(r.date)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(r.project)}</div>
+            ${r.staff ? `<div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(r.staff)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 function fetchShortageLog() {
