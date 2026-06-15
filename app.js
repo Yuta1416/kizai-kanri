@@ -1242,6 +1242,12 @@ function renderShiftSheet(idx) {
     `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
   const ws = wb.Sheets[wb.SheetNames[idx]];
+  if (ws['!ref']) {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    range.e.c = Math.min(range.e.c, 9);  // J列(index 9)まで
+    range.e.r = Math.min(range.e.r, 31); // 32行まで
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  }
   const html = XLSX.utils.sheet_to_html(ws, {editable: false});
   content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
 }
