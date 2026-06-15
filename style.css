@@ -136,12 +136,47 @@ tr:hover td { background: var(--bg3); }
 .item-card-total { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
 @media (max-width: 640px) {
-  .stats { grid-template-columns: repeat(2, 1fr); }
-  .topbar { flex-direction: column; align-items: flex-start; }
-  .tab { padding: 7px 10px; font-size: 12px; }
+  /* アプリ全体の余白を詰める */
+  .app { padding: 10px; }
+
+  /* ヘッダー */
+  .topbar { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: nowrap; }
+  .topbar-left h1 { font-size: 15px; }
+  .topbar-left i { font-size: 18px; }
+  .topbar-right { gap: 4px; flex-wrap: nowrap; }
+  /* ヘッダーボタンのテキストを非表示にしてアイコンのみ */
+  .topbar-right .btn span, .topbar-right .btn:not(.btn-primary) > *:not(i) { display: none; }
+  .topbar-right .btn { padding: 7px 9px; }
+
+  /* タブバーを横スクロール */
+  .tab-bar { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-bottom: 10px; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab { padding: 8px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+  /* 統計 */
+  .stats { grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+  .stat { padding: 8px 10px; }
+  .stat-val { font-size: 18px; }
+
+  /* 凡例 */
+  .legend { margin-bottom: 8px; }
+
+  /* 在庫カード */
   .inv-layout { grid-template-columns: 1fr; }
-  .cat-sidebar { display: flex; flex-wrap: wrap; gap: 4px; position: static; }
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .cat-sidebar { display: flex; flex-wrap: wrap; gap: 4px; position: static; padding: 6px; }
+  .cat-sidebar-item { padding: 5px 8px; font-size: 11px; }
+  .card-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .item-card { padding: 10px 10px; gap: 8px; }
+  .item-card-count { font-size: 18px; }
+  .item-card-name { font-size: 12px; }
+
+  /* モーダル */
+  .modal { padding: 1.2rem; }
+
+  /* 持ち出し中・履歴 */
+  .proj-group-head { padding: 8px 10px; }
+  .proj-group-name { font-size: 13px; }
+  .proj-item-row { padding: 6px 10px; gap: 6px; }
 }
 
 /* ===== 案件グループ ===== */
