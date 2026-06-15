@@ -1235,9 +1235,91 @@ function renderShiftSheet(idx) {
 // トップページ（カレンダー＋シフト）
 // ============================================================
 function renderTopPage() {
-  // カレンダーは非表示
   const calContainer = document.getElementById('top-calendar');
-  if (calContainer) calContainer.innerHTML = '';
+  if (!calContainer) return;
+
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  const dateMap = {};
+  const addToMap = (dateStr, label, isRet) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d)) return;
+      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+      if (!dateMap[key]) dateMap[key] = [];
+      const entry = isRet ? '返却: ' + label : label;
+      if (!dateMap[key].includes(entry)) dateMap[key].push(entry);
+    } catch(e) {}
+  };
+  history.forEach(h => { if (h.project) addToMap(h.date, h.project, false); });
+  outItems.forEach(o => {
+    if (o.date || o.dateOut) {
+      try {
+        const d = new Date(o.date || o.dateOut);
+        if (!isNaN(d)) {
+          const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+          if (!dateMap[key]) dateMap[key] = [];
+          const proj = o.project || '（案件名未入力）';
+          if (!dateMap[key].includes(proj)) dateMap[key].push(proj);
+        }
+      } catch(e) {}
+    }
+    if (o.returnDate) {
+      try {
+        const rd = new Date(o.returnDate);
+        if (!isNaN(rd)) {
+          const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
+          if (!dateMap[rkey]) dateMap[rkey] = [];
+          const retLabel = '返却: ' + (o.project || '未入力');
+          if (!dateMap[rkey].includes(retLabel)) dateMap[rkey].push(retLabel);
+        }
+      } catch(e) {}
+    }
+  });
+
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const dayNames = ['日','月','火','水','木','金','土'];
+  let calCells = '';
+  dayNames.forEach(d => { calCells += `<div class="cal-head">${d}</div>`; });
+  for (let i = 0; i < (firstDay === 0 ? 6 : firstDay-1); i++) calCells += `<div class="cal-cell empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = year + '-' + (month+1) + '-' + d;
+    const events = dateMap[key] || [];
+    const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+    const eventDots = events.slice(0,5).map(function(e) {
+      const isRet = e.startsWith('返却');
+      const proj = isRet ? e.replace('返却: ','') : e;
+      const label = e.length > 8 ? e.slice(0,8)+'…' : e;
+      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" onclick="showProjectDetail(this.dataset.project,event)" style="cursor:pointer">' + label + '</div>';
+    }).join('');
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
+  }
+
+  calContainer.innerHTML = `
+    <div class="dash-card">
+      <div class="dash-card-head" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-calendar"></i>
+          <span>${year}年${monthNames[month]}</span>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn" style="padding:4px 8px" onclick="changeCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+          ${calOffset !== 0 ? `<button class="btn" style="padding:4px 8px;font-size:11px" onclick="calOffset=0;renderTopPage()">今月</button>` : ''}
+          <button class="btn" style="padding:4px 8px" onclick="changeCalMonth(1)"><i class="ti ti-chevron-right"></i></button>
+        </div>
+      </div>
+      <div class="cal-grid">${calCells}</div>
+      <div class="cal-legend">
+        <span class="cal-event">持ち出し</span>
+        <span class="cal-event ret">返却予定</span>
+      </div>
+    </div>
+  `;
 }
 
 function fetchShortageLog() {
