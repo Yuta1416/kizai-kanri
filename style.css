@@ -208,6 +208,7 @@ tr:hover td { background: var(--bg3); }
 .shift-table-wrap td, .shift-table-wrap th { border: 0.5px solid var(--border2); padding: 3px 4px; white-space: normal; word-break: break-all; vertical-align: top; min-width: 40px; }
 .shift-table-wrap tr:nth-child(even) { background: var(--bg3); }
 .shift-table-wrap tr:nth-child(n+33) { display: none; }
+.shift-table-wrap td:nth-child(n+12), .shift-table-wrap th:nth-child(n+12) { display: none; }
 @media (max-width: 700px) { .top-layout { grid-template-columns: 1fr; } .top-left { position: static; } }
 
 .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
