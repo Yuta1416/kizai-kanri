@@ -1219,9 +1219,8 @@ function fetchShiftFile() {
     if (fname) fname.textContent = json.filename || 'シフト';
     const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
     const wb = XLSX.read(bytes, {type:'array'});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const html = XLSX.utils.sheet_to_html(ws, {editable: false});
-    content.innerHTML = '<div class="shift-table-wrap">' + html + '</div>';
+    window._shiftWb = wb;
+    renderShiftSheet(0);
   };
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
@@ -1232,6 +1231,19 @@ function fetchShiftFile() {
     if (content) content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2)">読み込み失敗</div>';
   };
   document.body.appendChild(script);
+}
+
+function renderShiftSheet(idx) {
+  const wb = window._shiftWb;
+  if (!wb) return;
+  const content = document.getElementById('shift-content');
+  if (!content) return;
+  const tabs = wb.SheetNames.map((name, i) =>
+    `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
+  ).join('');
+  const ws = wb.Sheets[wb.SheetNames[idx]];
+  const html = XLSX.utils.sheet_to_html(ws, {editable: false});
+  content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
 }
 
 // ============================================================
