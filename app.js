@@ -1215,7 +1215,7 @@ function renderShiftSheet(idx) {
   if (ws['!ref']) {
     const range = XLSX.utils.decode_range(ws['!ref']);
     range.e.c = Math.min(range.e.c, 9);  // J列(index 9)まで
-    range.e.r = Math.min(range.e.r, 31); // 32行まで
+    range.e.r = Math.min(range.e.r, 199); // 200行まで
     ws['!ref'] = XLSX.utils.encode_range(range);
   }
   const html = XLSX.utils.sheet_to_html(ws, {editable: false});
