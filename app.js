@@ -131,6 +131,16 @@ const RAW = [
 
 let inv = RAW.map(c => ({cat:c[0],maker:c[1],model:c[2],total:c[3],out:0,special:0,status:'IN',note:c[4]||''}));
 let outItems = [], history = [];
+
+// 日付文字列を堅牢にパース（"2026/9/23 11:00" / "2026年9月23日 11:00" 両対応）
+function parseDate(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  const m = s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日(?:[\s　]*(\d{1,2}):(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], m[4]?+m[4]:0, m[5]?+m[5]:0);
+  const d = new Date(s.replace(/　/g, ' '));
+  return isNaN(d.getTime()) ? null : d;
+}
 let currentTab = 'all';
 let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1;
 
@@ -301,8 +311,14 @@ function renderOut() {
           <i class="ti ti-arrow-down-left"></i> 返却
         </button>
       </div>`;
-    const itemRows = ownItems.map(makeRow).join('') +
-      (rentalItems.length ? `<div style="border-top:1px dashed var(--border2);margin:6px 0;font-size:10px;color:var(--text2);padding-top:4px">レンタル品</div>` + rentalItems.map(makeRow).join('') : '');
+    // カテゴリでまとめて縦に表示
+    const groupByCat = list => {
+      const cats = {}, order = [];
+      list.forEach(o => { const c = o.category || 'その他'; if (!cats[c]) { cats[c]=[]; order.push(c); } cats[c].push(o); });
+      return order.map(c => `<div class="pd-cat-head">${escHtml(c)}</div>` + cats[c].map(makeRow).join('')).join('');
+    };
+    const itemRows = groupByCat(ownItems) +
+      (rentalItems.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rentalItems.map(makeRow).join('') : '');
     return `
       <div class="proj-group">
         <div class="proj-group-head" onclick="toggleGroup(this)">
@@ -764,8 +780,20 @@ function showProjectDetail(project, ev) {
   const makeItemRow = function(o) {
     return '<div class="proj-item-row"><span class="proj-item-name">' + escHtml(o.model||'') + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
   };
-  const itemRows = ownItems.map(makeItemRow).join('') +
-    (rentalItems.length ? '<div style="border-top:1px dashed var(--border2);margin:6px 0;font-size:10px;color:var(--text2);padding-top:4px">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '');
+  // カテゴリでまとめて縦に表示
+  const groupByCat = function(list) {
+    const cats = {}, order = [];
+    list.forEach(function(o) {
+      const c = o.category || 'その他';
+      if (!cats[c]) { cats[c] = []; order.push(c); }
+      cats[c].push(o);
+    });
+    return order.map(function(c) {
+      return '<div class="pd-cat-head">' + escHtml(c) + '</div>' + cats[c].map(makeItemRow).join('');
+    }).join('');
+  };
+  const itemRows = groupByCat(ownItems) +
+    (rentalItems.length ? '<div class="pd-cat-head pd-cat-rental">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '');
 
   document.getElementById('pd-project').textContent = project;
   document.getElementById('pd-staff').textContent   = staff;
@@ -932,6 +960,7 @@ function applyData(json) {
           qty:        parseInt(r.qty) || 0,
           project:    String(r.project    || ''),
           staff:      String(r.staff      || ''),
+          category:   String(r.category   || ''),
           dateOut:    String(r.dateOut    || ''),
           returnDate: String(r.dateReturn || ''),
           date:       String(r.date       || ''),
@@ -1367,40 +1396,32 @@ function renderTopPage() {
 
   const dateMap = {};
   const addToMap = (dateStr, label, isRet) => {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d)) return;
+    const d = parseDate(dateStr);
+    if (!d) return;
+    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    if (!dateMap[key]) dateMap[key] = [];
+    const entry = isRet ? '返却: ' + label : label;
+    if (!dateMap[key].includes(entry)) dateMap[key].push(entry);
+  };
+  outItems.forEach(o => {
+    // 持ち出し日は搬入予定(dateOut)を優先（処理日時dateではなく）
+    const d = parseDate(o.dateOut || o.date);
+    if (d) {
       const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
       if (!dateMap[key]) dateMap[key] = [];
-      const entry = isRet ? '返却: ' + label : label;
-      if (!dateMap[key].includes(entry)) dateMap[key].push(entry);
-    } catch(e) {}
-  };
-  history.forEach(h => { if (h.project) addToMap(h.date, h.project, false); });
-  outItems.forEach(o => {
-    if (o.date || o.dateOut) {
-      try {
-        const d = new Date(o.date || o.dateOut);
-        if (!isNaN(d)) {
-          const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-          if (!dateMap[key]) dateMap[key] = [];
-          const proj = o.project || '（案件名未入力）';
-          if (!dateMap[key].includes(proj)) dateMap[key].push(proj);
-        }
-      } catch(e) {}
+      const proj = o.project || '（案件名未入力）';
+      if (!dateMap[key].includes(proj)) dateMap[key].push(proj);
     }
-    if (o.returnDate) {
-      try {
-        const rd = new Date(o.returnDate);
-        if (!isNaN(rd)) {
-          const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
-          if (!dateMap[rkey]) dateMap[rkey] = [];
-          const retLabel = '返却: ' + (o.project || '未入力');
-          if (!dateMap[rkey].includes(retLabel)) dateMap[rkey].push(retLabel);
-        }
-      } catch(e) {}
+    const rd = parseDate(o.returnDate);
+    if (rd) {
+      const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
+      if (!dateMap[rkey]) dateMap[rkey] = [];
+      const retLabel = '返却: ' + (o.project || '未入力');
+      if (!dateMap[rkey].includes(retLabel)) dateMap[rkey].push(retLabel);
     }
   });
+  // 予約も持ち出し日にマップ
+  (reservations || []).forEach(r => { if (r.project) addToMap(r.dateOut, r.project, false); });
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const dayNames = ['日','月','火','水','木','金','土'];
@@ -1457,14 +1478,14 @@ function renderTopPage() {
     // reservations（予約）＋ outItems（持ち出し中）の返却予定を合算
     const items = [];
     (reservations || []).forEach(r => {
-      const d = new Date(r.dateOut);
-      if (!isNaN(d) && d >= today && d <= week) {
+      const d = parseDate(r.dateOut);
+      if (d && d >= today && d <= week) {
         items.push({ date: d, project: r.project || '（未入力）', staff: r.staff || '', items: r.itemName || '', type: 'reserve' });
       }
     });
     (outItems || []).forEach(o => {
-      const d = new Date(o.dateReturn || o.dateOut);
-      if (!isNaN(d) && d >= today && d <= week) {
+      const d = parseDate(o.returnDate || o.dateReturn || o.dateOut);
+      if (d && d >= today && d <= week) {
         items.push({ date: d, project: o.project || '（未入力）', staff: o.staff || '', items: o.itemName || '', type: 'out' });
       }
     });
