@@ -703,41 +703,6 @@ function deleteItem(idx) {
 }
 
 
-function showProjectDetail(project, e) {
-  e.stopPropagation();
-
-  // 該当案件の機材を取得
-  const projectItems = outItems.filter(o =>
-    (o.project || '（案件名未入力）') === project
-  );
-
-  // 履歴からも取得（返却済み含む）
-  const histItems = history.filter(h =>
-    (h.project || '（案件名未入力）') === project
-  );
-
-  const items = projectItems.length > 0 ? projectItems : histItems;
-  if (!items.length) return;
-
-  const dateOut   = items[0].dateOut || items[0].date || '—';
-  const dateRet   = items[0].returnDate || items[0].dateReturn || '—';
-  const staff     = items[0].staff || '—';
-
-  const itemRows = items.map(o =>
-    `<div class="proj-item-row">
-      <span class="proj-item-name">${o.model}</span>
-      <span class="proj-item-qty">×${o.qty}</span>
-    </div>`
-  ).join('');
-
-  const modal = document.getElementById('modal-project-detail');
-  document.getElementById('pd-project').textContent = project;
-  document.getElementById('pd-staff').textContent   = staff;
-  document.getElementById('pd-dateout').textContent = dateOut;
-  document.getElementById('pd-dateret').textContent = dateRet;
-  document.getElementById('pd-items').innerHTML     = itemRows;
-  modal.classList.add('open');
-}
 
 function showProjectDetail(project, ev) {
   if (ev) ev.stopPropagation();
