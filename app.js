@@ -1169,8 +1169,20 @@ function downloadPickupList(project, event) {
     const el = document.getElementById('jsonp_' + cbName);
     if (el) el.remove();
     if (json.status !== 'ok') { alert('取得失敗: ' + (json.message || 'エラー')); return; }
-    const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const items = json.items || [];
+    if (!items.length) { alert('持ち出し中の機材がありません'); return; }
+    const meta = items[0];
+    const wb = XLSX.utils.book_new();
+    const header = [['案件名', meta.project || ''], ['担当者', meta.staff || ''],
+      ['搬入予定', meta.dateOut || ''], ['返却予定', meta.dateReturn || ''],
+      ['車両', meta.vehicle || ''], [],
+      ['カテゴリ', '機材名', '数量', '備考']];
+    const rows = items.map(it => [it.category || '', it.itemName || '', it.qty || 0, it.note || '']);
+    const ws = XLSX.utils.aoa_to_sheet([...header, ...rows]);
+    ws['!cols'] = [{wch:14},{wch:28},{wch:8},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, ws, '持ち出しリスト');
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = json.filename || '持ち出しリスト.xlsx';
