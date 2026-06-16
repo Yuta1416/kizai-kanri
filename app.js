@@ -291,14 +291,18 @@ function renderOut() {
     const autoLabel = g.returnDate
       ? `<span class="badge s-info" style="font-size:10px"><i class="ti ti-clock"></i> 自動 ${g.returnDate}</span>`
       : `<span class="badge s-absent" style="font-size:10px">手動返却</span>`;
-    const itemRows = g.items.map(o => `
+    const ownItems    = g.items.filter(o => o.note !== '[レンタル]');
+    const rentalItems = g.items.filter(o => o.note === '[レンタル]');
+    const makeRow = o => `
       <div class="proj-item-row">
         <span class="proj-item-name">${o.model}</span>
         <span class="proj-item-qty">×${o.qty}</span>
         <button class="act" style="padding:3px 8px;font-size:11px" onclick="openReturnFromOut(${o.outIdx})">
           <i class="ti ti-arrow-down-left"></i> 返却
         </button>
-      </div>`).join('');
+      </div>`;
+    const itemRows = ownItems.map(makeRow).join('') +
+      (rentalItems.length ? `<div style="border-top:1px dashed var(--border2);margin:6px 0;font-size:10px;color:var(--text2);padding-top:4px">レンタル品</div>` + rentalItems.map(makeRow).join('') : '');
     return `
       <div class="proj-group">
         <div class="proj-group-head" onclick="toggleGroup(this)">
@@ -755,9 +759,13 @@ function showProjectDetail(project, ev) {
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
 
-  const itemRows = items.map(function(o) {
-    return '<div class="proj-item-row"><span class="proj-item-name">' + o.model + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
-  }).join('');
+  const ownItems    = items.filter(function(o) { return o.note !== '[レンタル]'; });
+  const rentalItems = items.filter(function(o) { return o.note === '[レンタル]'; });
+  const makeItemRow = function(o) {
+    return '<div class="proj-item-row"><span class="proj-item-name">' + escHtml(o.model||'') + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
+  };
+  const itemRows = ownItems.map(makeItemRow).join('') +
+    (rentalItems.length ? '<div style="border-top:1px dashed var(--border2);margin:6px 0;font-size:10px;color:var(--text2);padding-top:4px">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '');
 
   document.getElementById('pd-project').textContent = project;
   document.getElementById('pd-staff').textContent   = staff;
@@ -928,6 +936,7 @@ function applyData(json) {
           returnDate: String(r.dateReturn || ''),
           date:       String(r.date       || ''),
           vehicle:    String(r.vehicle    || ''),
+          note:       String(r.note       || ''),
         };
       });
 
