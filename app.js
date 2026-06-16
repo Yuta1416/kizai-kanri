@@ -350,9 +350,14 @@ function renderHistory() {
 
   const q = (document.getElementById('hist-srch')?.value || '').toLowerCase();
 
+  // 修理・レンタル・復帰は非表示
+  const SPECIAL_ACTIONS = new Set(['修理中','レンタル中','長期不在','復帰']);
+
   // 年月でグループ化
   const monthGroups = {};
   [...history].reverse().forEach(h => {
+    if (SPECIAL_ACTIONS.has(h.action)) return;
+    if (!h.project) return;
     if (q) {
       const hit = [h.project, h.staff, h.model, h.note].some(v => String(v||'').toLowerCase().includes(q));
       if (!hit) return;
@@ -400,7 +405,8 @@ function renderHistory() {
               <span class="proj-group-name" style="font-size:13px">${project}</span>
               <span class="proj-group-meta">${g.staff||''}</span>
             </div>
-            <div class="proj-group-right">
+            <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">
+              <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();downloadHistoryPickupList(${JSON.stringify(project)})"><i class="ti ti-file-download"></i> リストDL</button>
               <span class="proj-count">${g.items.length}件</span>
             </div>
           </div>
@@ -423,6 +429,35 @@ function renderHistory() {
         <div class="proj-group-body" style="padding:6px 8px">${projectRows}</div>
       </div>`;
   }).join('');
+}
+
+function downloadHistoryPickupList(project) {
+  const items = history.filter(h => h.project === project && h.action === 'OUT');
+  if (!items.length) { alert('持ち出し記録がありません'); return; }
+
+  // 機材ごとに集計（同じmodelは合算）
+  const map = {};
+  items.forEach(h => {
+    const key = h.model;
+    if (!map[key]) map[key] = { model: h.model, qty: 0, staff: h.staff || '', date: h.date || '', note: h.note || '' };
+    map[key].qty += Number(h.qty) || 0;
+  });
+  const rows = Object.values(map);
+
+  const wb = XLSX.utils.book_new();
+  const sheetData = [
+    ['持ち出しリスト'],
+    ['案件名', project],
+    ['担当者', rows[0]?.staff || ''],
+    ['日付', rows[0]?.date || ''],
+    [],
+    ['機材名', '数量', '備考'],
+    ...rows.map(r => [r.model, r.qty, r.note]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [{wch:30},{wch:8},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws, '持ち出しリスト');
+  XLSX.writeFile(wb, `持ち出しリスト_${project}.xlsx`);
 }
 
 function switchTab(tab, el) {
