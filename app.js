@@ -1263,14 +1263,58 @@ function renderStaffShiftSheet(idx) {
     `<button onclick="renderStaffShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
   const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
-  if (ws['!ref']) {
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    range.e.c = Math.min(range.e.c, 9);
-    range.e.r = Math.min(range.e.r, 199);
-    ws['!ref'] = XLSX.utils.encode_range(range);
-  }
-  const html = XLSX.utils.sheet_to_html(ws, {editable: false});
-  content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
+  const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', range:0});
+
+  // D,F,H,J列（index 3,5,7,9）は元のExcelで青背景
+  const blueCols = new Set([3,5,7,9]);
+
+  const border = '0.5px solid #aab';
+  let html = '<table style="border-collapse:collapse;font-size:11px;table-layout:fixed;width:100%">';
+  html += '<colgroup><col style="width:26px"><col style="width:24px">';
+  for (let c = 2; c < 10; c++) html += '<col>';
+  html += '</colgroup>';
+
+  data.slice(0, 35).forEach((row, r) => {
+    const youbi = String(row[1] || '');
+    const isSat = youbi === '土';
+    const isSun = youbi === '日';
+
+    if (r === 0) {
+      // ヘッダー行：A1:B1はExcelでマージ→2セルまとめて表示
+      html += '<tr style="height:28px">';
+      html += `<td colspan="2" style="border:${border};padding:3px 4px;text-align:center;font-weight:500;font-size:11px;background:#e8eaf0">${escHtml(String(row[0]||''))}</td>`;
+      for (let c = 2; c < 10; c++) {
+        const bg = blueCols.has(c) ? '#B6D6E9' : '#e8eaf0';
+        html += `<td style="border:${border};padding:3px 2px;text-align:center;font-weight:500;font-size:10px;background:${bg}">${escHtml(String(row[c]||''))}</td>`;
+      }
+      html += '</tr>';
+    } else {
+      const rowBg = isSat ? '#dce8f8' : isSun ? '#fce4e4' : '';
+      html += `<tr${rowBg ? ` style="background:${rowBg}"` : ''}>`;
+
+      // 日付
+      const dateColor = isSat ? 'color:#1a56db;' : isSun ? 'color:#c0392b;' : '';
+      const dateBg = rowBg ? `background:${rowBg};` : 'background:#f0f2f5;';
+      html += `<td style="border:${border};padding:3px 2px;text-align:center;font-size:14px;font-weight:600;white-space:nowrap;${dateBg}${dateColor}">${escHtml(String(row[0]||''))}</td>`;
+
+      // 曜日
+      const yColor = isSat ? 'color:#1a56db;' : isSun ? 'color:#c0392b;' : '';
+      html += `<td style="border:${border};padding:3px 2px;text-align:center;font-size:13px;font-weight:500;white-space:nowrap;${dateBg}${yColor}">${escHtml(youbi)}</td>`;
+
+      // スタッフ列 C〜J
+      for (let c = 2; c < 10; c++) {
+        const val = String(row[c] !== undefined ? row[c] : '');
+        let bg = '';
+        if (rowBg) bg = `background:${rowBg};`;
+        else if (blueCols.has(c)) bg = 'background:rgba(182,214,233,0.35);';
+        html += `<td style="border:${border};padding:3px 4px;vertical-align:top;word-break:break-all;font-size:11px;${bg}">${escHtml(val)}</td>`;
+      }
+      html += '</tr>';
+    }
+  });
+
+  html += '</table>';
+  content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div style="overflow-x:auto">${html}</div>`;
 }
 
 // ============================================================
