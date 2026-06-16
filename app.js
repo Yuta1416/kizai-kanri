@@ -753,6 +753,7 @@ function showProjectDetail(project, ev) {
   const dateOut = items[0].dateOut || items[0].date || '—';
   const dateRet = items[0].returnDate || items[0].dateReturn || '—';
   const staff   = items[0].staff || '—';
+  const vehicle = items[0].vehicle || '';
 
   const itemRows = items.map(function(o) {
     return '<div class="proj-item-row"><span class="proj-item-name">' + o.model + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
@@ -763,6 +764,11 @@ function showProjectDetail(project, ev) {
   document.getElementById('pd-dateout').textContent = dateOut;
   document.getElementById('pd-dateret').textContent = dateRet;
   document.getElementById('pd-items').innerHTML     = itemRows;
+  const pdVehicle = document.getElementById('pd-vehicle');
+  if (pdVehicle) {
+    pdVehicle.textContent = vehicle || '—';
+    pdVehicle.closest('.pd-vehicle-row').style.display = vehicle ? '' : 'none';
+  }
   document.getElementById('modal-project-detail').classList.add('open');
 }
 
@@ -920,6 +926,7 @@ function applyData(json) {
           staff:      String(r.staff      || ''),
           returnDate: String(r.dateReturn || ''),
           date:       String(r.date       || ''),
+          vehicle:    String(r.vehicle    || ''),
         };
       });
 
@@ -1407,7 +1414,7 @@ function renderReservations() {
   const groups = {};
   reservations.forEach(r => {
     const key = r.project || '（案件名未入力）';
-    if (!groups[key]) groups[key] = { items: [], staff: r.staff, dateOut: r.dateOut, dateReturn: r.dateReturn };
+    if (!groups[key]) groups[key] = { items: [], staff: r.staff, dateOut: r.dateOut, dateReturn: r.dateReturn, vehicle: r.vehicle || '' };
     groups[key].items.push(r);
   });
   container.innerHTML = Object.entries(groups).map(([project, g]) => {
@@ -1424,6 +1431,7 @@ function renderReservations() {
             <span class="proj-group-name">${escHtml(project)}</span>
             <span class="proj-group-meta">${escHtml(g.staff||'担当未入力')}</span>
             <span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(g.dateOut)}</span>
+            ${g.vehicle ? `<span class="badge" style="font-size:10px;background:var(--border);color:var(--text2)"><i class="ti ti-car"></i> ${escHtml(g.vehicle)}</span>` : ''}
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
