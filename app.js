@@ -435,7 +435,7 @@ function switchTab(tab, el) {
   });
   render();
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
-  if (tab === 'all') renderTopPage();
+  if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
 }
 
 function toggleGroup(head) {
@@ -951,6 +951,7 @@ function fetchFromSpreadsheet() {
     document.getElementById('cache-banner').classList.add('show');
   }
   fetchShiftFile();
+  fetchStaffShiftFile();
 
   const cbName = 'gasCallback_' + Date.now();
   window[cbName] = function(json) {
@@ -1216,6 +1217,56 @@ function renderShiftSheet(idx) {
     const range = XLSX.utils.decode_range(ws['!ref']);
     range.e.c = Math.min(range.e.c, 9);  // J列(index 9)まで
     range.e.r = Math.min(range.e.r, 199); // 200行まで
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  }
+  const html = XLSX.utils.sheet_to_html(ws, {editable: false});
+  content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
+}
+
+function fetchStaffShiftFile() {
+  if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') return;
+  const cbName = 'staffShiftCb_' + Date.now();
+  window[cbName] = function(json) {
+    delete window[cbName];
+    document.getElementById('jsonp_'+cbName)?.remove();
+    const content = document.getElementById('staff-shift-content');
+    if (!content) return;
+    if (json.status !== 'ok') {
+      content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2);font-size:13px">ファイルが見つかりません: ' + escHtml(json.message||'エラー') + '</div>';
+      return;
+    }
+    const fname = document.getElementById('staff-shift-filename');
+    if (fname) fname.textContent = json.filename || 'スタッフシフト';
+    const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
+    const wb = XLSX.read(bytes, {type:'array'});
+    window._staffShiftWb = wb;
+    renderStaffShiftSheet(0);
+  };
+  const script = document.createElement('script');
+  script.id = 'jsonp_' + cbName;
+  script.src = GAS_API_URL + '?action=staff_shift_file&callback=' + cbName;
+  script.onerror = function() {
+    delete window[cbName]; script.remove();
+    const content = document.getElementById('staff-shift-content');
+    if (content) content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2)">読み込み失敗</div>';
+  };
+  document.body.appendChild(script);
+}
+
+function renderStaffShiftSheet(idx) {
+  const wb = window._staffShiftWb;
+  if (!wb) return;
+  const content = document.getElementById('staff-shift-content');
+  if (!content) return;
+  const sheetNames = wb.SheetNames.slice(0, 6);
+  const tabs = sheetNames.map((name, i) =>
+    `<button onclick="renderStaffShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
+  ).join('');
+  const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
+  if (ws['!ref']) {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    range.e.c = Math.min(range.e.c, 9);
+    range.e.r = Math.min(range.e.r, 199);
     ws['!ref'] = XLSX.utils.encode_range(range);
   }
   const html = XLSX.utils.sheet_to_html(ws, {editable: false});
