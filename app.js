@@ -452,32 +452,8 @@ function renderHistory() {
 }
 
 function downloadHistoryPickupList(project) {
-  const items = history.filter(h => h.project === project && h.action === 'OUT');
-  if (!items.length) { alert('持ち出し記録がありません'); return; }
-
-  // 機材ごとに集計（同じmodelは合算）
-  const map = {};
-  items.forEach(h => {
-    const key = h.model;
-    if (!map[key]) map[key] = { model: h.model, qty: 0, staff: h.staff || '', date: h.date || '', note: h.note || '' };
-    map[key].qty += Number(h.qty) || 0;
-  });
-  const rows = Object.values(map);
-
-  const wb = XLSX.utils.book_new();
-  const sheetData = [
-    ['持ち出しリスト'],
-    ['案件名', project],
-    ['担当者', rows[0]?.staff || ''],
-    ['日付', rows[0]?.date || ''],
-    [],
-    ['機材名', '数量', '備考'],
-    ...rows.map(r => [r.model, r.qty, r.note]),
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  ws['!cols'] = [{wch:30},{wch:8},{wch:20}];
-  XLSX.utils.book_append_sheet(wb, ws, '持ち出しリスト');
-  XLSX.writeFile(wb, `持ち出しリスト_${project}.xlsx`);
+  // Dropboxの持ち出しリスト現物（受注書コピー＋転記済み）をダウンロード
+  downloadPickupList(project);
 }
 
 function switchTab(tab, el) {
@@ -1203,36 +1179,25 @@ function checkAutoReturn() {
 
 function downloadPickupList(project, event) {
   if (event) event.stopPropagation();
+  if (!project) { alert('案件を選択してください'); return; }
   const cbName = 'pickupCallback_' + Date.now();
   window[cbName] = function(json) {
     delete window[cbName];
     const el = document.getElementById('jsonp_' + cbName);
     if (el) el.remove();
     if (json.status !== 'ok') { alert('取得失敗: ' + (json.message || 'エラー')); return; }
-    const items = json.items || [];
-    if (!items.length) { alert('持ち出し中の機材がありません'); return; }
-    const meta = items[0];
-    const wb = XLSX.utils.book_new();
-    const header = [['案件名', meta.project || ''], ['担当者', meta.staff || ''],
-      ['搬入予定', meta.dateOut || ''], ['返却予定', meta.dateReturn || ''],
-      ['車両', meta.vehicle || ''], [],
-      ['カテゴリ', '機材名', '数量', '備考']];
-    const rows = items.map(it => [it.category || '', it.itemName || '', it.qty || 0, it.note || '']);
-    const ws = XLSX.utils.aoa_to_sheet([...header, ...rows]);
-    ws['!cols'] = [{wch:14},{wch:28},{wch:8},{wch:20}];
-    XLSX.utils.book_append_sheet(wb, ws, '持ち出しリスト');
-    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-    const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    // Dropboxの持ち出しリスト現物（受注書コピー＋転記済み）をそのままダウンロード
+    const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = json.filename || '持ち出しリスト.xlsx';
+    a.download = json.filename || ('持ち出しリスト_' + project + '.xlsx');
     a.click();
     URL.revokeObjectURL(a.href);
   };
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
-  const projectParam = project ? '&project=' + encodeURIComponent(project) : '';
-  script.src = GAS_API_URL + '?action=pickuplist&callback=' + cbName + projectParam;
+  script.src = GAS_API_URL + '?action=pickupfile&callback=' + cbName + '&project=' + encodeURIComponent(project);
   script.onerror = function() {
     delete window[cbName]; script.remove();
     alert('取得に失敗しました');
