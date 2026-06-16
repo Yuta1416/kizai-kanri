@@ -889,6 +889,7 @@ function applyData(json) {
           qty:        parseInt(r.qty) || 0,
           project:    String(r.project    || ''),
           staff:      String(r.staff      || ''),
+          dateOut:    String(r.dateOut    || ''),
           returnDate: String(r.dateReturn || ''),
           date:       String(r.date       || ''),
           vehicle:    String(r.vehicle    || ''),
