@@ -1207,10 +1207,11 @@ function renderShiftSheet(idx) {
   if (!wb) return;
   const content = document.getElementById('shift-content');
   if (!content) return;
-  const tabs = wb.SheetNames.map((name, i) =>
+  const sheetNames = wb.SheetNames.slice(0, 6);
+  const tabs = sheetNames.map((name, i) =>
     `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
-  const ws = wb.Sheets[wb.SheetNames[idx]];
+  const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
   if (ws['!ref']) {
     const range = XLSX.utils.decode_range(ws['!ref']);
     range.e.c = Math.min(range.e.c, 9);  // J列(index 9)まで
