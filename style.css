@@ -234,6 +234,7 @@ tr:hover td { background: var(--bg3); }
 #pd-items { max-height: 55vh; overflow-y: auto; margin: 4px 0; }
 .pd-cat-head { font-size: 11px; font-weight: 700; color: var(--text2); background: var(--bg); padding: 5px 16px; margin-top: 6px; border-radius: 6px; position: sticky; top: 0; z-index: 1; }
 .pd-cat-head.pd-cat-rental { color: var(--warn-text); border-top: 1px dashed var(--border2); margin-top: 10px; }
+.pd-cat-head.pd-cat-free { color: var(--info-text); border-top: 1px dashed var(--border2); margin-top: 10px; }
 
 /* ===== コンボボックス（選択＋直接入力） ===== */
 .combo-wrap { display: flex; flex-direction: column; gap: 5px; }

@@ -301,8 +301,9 @@ function renderOut() {
     const autoLabel = g.returnDate
       ? `<span class="badge s-info" style="font-size:10px"><i class="ti ti-clock"></i> 自動 ${g.returnDate}</span>`
       : `<span class="badge s-absent" style="font-size:10px">手動返却</span>`;
-    const ownItems    = g.items.filter(o => o.note !== '[レンタル]');
+    const ownItems    = g.items.filter(o => o.note !== '[レンタル]' && o.note !== '(在庫管理外)');
     const rentalItems = g.items.filter(o => o.note === '[レンタル]');
+    const freeItems   = g.items.filter(o => o.note === '(在庫管理外)');
     const makeRow = o => `
       <div class="proj-item-row">
         <span class="proj-item-name">${o.model}</span>
@@ -318,7 +319,8 @@ function renderOut() {
       return order.map(c => `<div class="pd-cat-head">${escHtml(c)}</div>` + cats[c].map(makeRow).join('')).join('');
     };
     const itemRows = groupByCat(ownItems) +
-      (rentalItems.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rentalItems.map(makeRow).join('') : '');
+      (rentalItems.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rentalItems.map(makeRow).join('') : '') +
+      (freeItems.length ? `<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>` + freeItems.map(makeRow).join('') : '');
     return `
       <div class="proj-group">
         <div class="proj-group-head" onclick="toggleGroup(this)">
@@ -751,8 +753,9 @@ function showProjectDetail(project, ev) {
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
 
-  const ownItems    = items.filter(function(o) { return o.note !== '[レンタル]'; });
+  const ownItems    = items.filter(function(o) { return o.note !== '[レンタル]' && o.note !== '(在庫管理外)'; });
   const rentalItems = items.filter(function(o) { return o.note === '[レンタル]'; });
+  const freeItems   = items.filter(function(o) { return o.note === '(在庫管理外)'; });
   const makeItemRow = function(o) {
     return '<div class="proj-item-row"><span class="proj-item-name">' + escHtml(o.model||'') + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
   };
@@ -769,7 +772,8 @@ function showProjectDetail(project, ev) {
     }).join('');
   };
   const itemRows = groupByCat(ownItems) +
-    (rentalItems.length ? '<div class="pd-cat-head pd-cat-rental">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '');
+    (rentalItems.length ? '<div class="pd-cat-head pd-cat-rental">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '') +
+    (freeItems.length ? '<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>' + freeItems.map(makeItemRow).join('') : '');
 
   document.getElementById('pd-project').textContent = project;
   document.getElementById('pd-staff').textContent   = staff;
