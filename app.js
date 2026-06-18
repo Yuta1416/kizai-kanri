@@ -151,6 +151,7 @@ function dateKeyOf(str) {
 let currentTab = 'all';
 let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1, loanIdx=-1;
 let loans = [];
+let rentalRanking = [];
 let pdDateKey = '';
 
 function calcSt(item) {
@@ -1064,6 +1065,9 @@ function applyData(json) {
   loans = json.loans || [];
   if (currentTab === 'out') renderOut();
 
+  rentalRanking = json.rentalRanking || [];
+  if (currentTab === 'dashboard') renderDashboard();
+
   if (json.history && json.history.length > 0) {
     const gasHistory = json.history.map(function(h) {
       return {
@@ -1247,6 +1251,19 @@ function renderDashboard() {
     </div>`;
   }).join('') : `<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">在庫不足の記録がありません</div>`;
 
+  // レンタル品ランキング（自社以外から借りた機材。拠点間貸出は除外）
+  const rentTop = (rentalRanking || []).slice(0, 10);
+  const rentMax = rentTop.length ? rentTop[0].count : 1;
+  const rentRows = rentTop.length ? rentTop.map((r, i) => {
+    const pct = Math.round(r.count / rentMax * 100);
+    return `<div class="rep-row">
+      <span class="rep-rank">${i+1}</span>
+      <span class="rep-name">${escHtml(r.model)}${r.companies?`<span style="color:var(--text2);font-size:10px"> / ${escHtml(r.companies)}</span>`:''}</span>
+      <div class="rep-bar-wrap"><div class="rep-bar" style="width:${pct}%;background:var(--warn-text)"></div></div>
+      <span class="rep-count">${r.count}回</span>
+    </div>`;
+  }).join('') : `<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">レンタルの記録がありません</div>`;
+
   container.innerHTML = `
     <div class="dash-card">
       <div class="dash-card-head">
@@ -1254,6 +1271,14 @@ function renderDashboard() {
         <span>在庫不足 TOP${top10.length}</span>
       </div>
       <div class="rep-list">${reportRows}</div>
+    </div>
+    <div class="dash-card" style="margin-top:14px">
+      <div class="dash-card-head">
+        <i class="ti ti-building-store" aria-hidden="true"></i>
+        <span>レンタル品 TOP${rentTop.length}（購入検討の参考）</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);padding:0 4px 6px">自社以外から借りた回数が多い機材（拠点間貸出は除く）</div>
+      <div class="rep-list">${rentRows}</div>
     </div>
   `;
 }
