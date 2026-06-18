@@ -811,19 +811,30 @@ function deleteItem(idx) {
 
 
 
+function fmtDateDisp(str) {
+  if (!str) return '—';
+  const d = parseDate(str);
+  if (!d) return String(str).replace(/　/g, ' ');
+  let s = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  if (d.getHours() || d.getMinutes()) s += ` ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return s;
+}
+
 function showProjectDetail(project, ev) {
   if (ev) ev.stopPropagation();
-  const projectItems = outItems.filter(function(o) {
-    return (o.project || '（案件名未入力）') === project;
-  });
-  const histItems = history.filter(function(h) {
-    return (h.project || '（案件名未入力）') === project;
-  });
-  const items = projectItems.length > 0 ? projectItems : histItems;
+  const key = p => (p || '（案件名未入力）') === project;
+  const projectItems = outItems.filter(o => key(o.project));
+  // 予約中の機材（itemName→model, dateReturn→returnDate に正規化）
+  const resItems = (reservations || []).filter(r => key(r.project)).map(r => ({
+    model: r.itemName, qty: r.qty, category: r.category, note: r.note,
+    dateOut: r.dateOut, returnDate: r.dateReturn, staff: r.staff, vehicle: r.vehicle, date: r.dateOut
+  }));
+  const histItems = history.filter(h => key(h.project));
+  const items = projectItems.length > 0 ? projectItems : (resItems.length > 0 ? resItems : histItems);
   if (!items.length) return;
 
-  const dateOut = items[0].dateOut || items[0].date || '—';
-  const dateRet = items[0].returnDate || items[0].dateReturn || '—';
+  const dateOut = fmtDateDisp(items[0].dateOut || items[0].date);
+  const dateRet = fmtDateDisp(items[0].returnDate || items[0].dateReturn);
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
 
@@ -1593,11 +1604,22 @@ function renderReservations() {
     groups[key].items.push(r);
   });
   container.innerHTML = Object.entries(groups).map(([project, g]) => {
-    const rows = g.items.map(r => `
+    const makeRow = r => `
       <div class="proj-item-row">
         <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}</span>
         <span class="proj-item-qty">×${r.qty}</span>
-      </div>`).join('');
+      </div>`;
+    const own    = g.items.filter(r => r.note !== '[レンタル]' && r.note !== '(在庫管理外)');
+    const rental = g.items.filter(r => r.note === '[レンタル]');
+    const free   = g.items.filter(r => r.note === '(在庫管理外)');
+    const groupByCat = list => {
+      const cats = {}, order = [];
+      list.forEach(r => { const c = r.category || 'その他'; if (!cats[c]) { cats[c]=[]; order.push(c); } cats[c].push(r); });
+      return order.map(c => `<div class="pd-cat-head">${escHtml(c)}</div>` + cats[c].map(makeRow).join('')).join('');
+    };
+    const rows = groupByCat(own) +
+      (rental.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rental.map(makeRow).join('') : '') +
+      (free.length ? `<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>` + free.map(makeRow).join('') : '');
     return `
       <div class="proj-group">
         <div class="proj-group-head" onclick="toggleGroup(this)">
@@ -1610,6 +1632,9 @@ function renderReservations() {
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
+            <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}',event)">
+              <i class="ti ti-file-download"></i> DL
+            </button>
             <button class="act" style="color:var(--danger-text)" onclick="cancelReservation('${project.replace(/'/g,"\\'")}',event)">
               <i class="ti ti-x"></i> キャンセル
             </button>
