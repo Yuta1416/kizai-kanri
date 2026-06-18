@@ -236,6 +236,10 @@ tr:hover td { background: var(--bg3); }
 .pd-cat-head.pd-cat-rental { color: var(--warn-text); border-top: 1px dashed var(--border2); margin-top: 10px; }
 .pd-cat-head.pd-cat-free { color: var(--info-text); border-top: 1px dashed var(--border2); margin-top: 10px; }
 
+/* 予約重複（在庫超過）アラートバナー */
+.conflict-alert { background: var(--danger-bg, #fde8e8); color: var(--danger-text); border: 1px solid var(--danger-text); border-radius: var(--radius); padding: 8px 12px; margin: 0 0 10px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.conflict-alert i { font-size: 15px; }
+
 /* ===== コンボボックス（選択＋直接入力） ===== */
 .combo-wrap { display: flex; flex-direction: column; gap: 5px; }
 .combo-wrap select { font-family: var(--font); font-size: 12px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); }

@@ -152,6 +152,7 @@ let currentTab = 'all';
 let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1, loanIdx=-1;
 let loans = [];
 let rentalRanking = [];
+let conflicts = [];
 let pdDateKey = '';
 
 function calcSt(item) {
@@ -1066,6 +1067,8 @@ function applyData(json) {
   if (currentTab === 'out') renderOut();
 
   rentalRanking = json.rentalRanking || [];
+  conflicts = json.conflicts || [];
+  renderConflictBanner();
   if (currentTab === 'dashboard') renderDashboard();
 
   if (json.history && json.history.length > 0) {
@@ -1145,6 +1148,14 @@ function changeCalMonth(delta) {
   calOffset = Math.max(-6, Math.min(6, calOffset + delta));
   if (currentTab === 'all') renderTopPage();
   else renderDashboard();
+}
+
+function renderConflictBanner() {
+  const el = document.getElementById('conflict-banner');
+  if (!el) return;
+  if (!conflicts || !conflicts.length) { el.innerHTML = ''; return; }
+  const items = conflicts.map(c => `${escHtml(c.model)}（${c.shortage}不足）`).join('、');
+  el.innerHTML = `<div class="conflict-alert" onclick="switchTab('dashboard',document.querySelector('.tab:last-child'))"><i class="ti ti-alert-triangle"></i> <strong>予約重複で在庫超過：</strong>${items}<span style="opacity:.75"> — タップで詳細</span></div>`;
 }
 
 function renderDashboard() {
@@ -1264,7 +1275,22 @@ function renderDashboard() {
     </div>`;
   }).join('') : `<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">レンタルの記録がありません</div>`;
 
-  container.innerHTML = `
+  // 予約重複（在庫超過）アラート
+  const conflictCard = (conflicts && conflicts.length) ? `
+    <div class="dash-card" style="margin-bottom:14px;border:1px solid var(--danger-text)">
+      <div class="dash-card-head" style="color:var(--danger-text)">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <span>予約重複で在庫超過（${conflicts.length}件）</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);padding:0 4px 6px">同じ機材を期間（日時）が重なって予約/持ち出ししています</div>
+      ${conflicts.map(c => `
+        <div style="padding:8px 4px;border-bottom:0.5px solid var(--border)">
+          <div style="font-weight:700;font-size:13px">${escHtml(c.model)} <span style="color:var(--danger-text)">必要${c.peak} / 総数${c.total}（${c.shortage}個不足）</span></div>
+          ${c.bookings.map(b => `<div style="font-size:11px;color:var(--text2);margin-top:2px">・${escHtml(b.project||'（未入力）')} ×${b.qty}　${escHtml(fmtDateDisp(b.dateOut))} 〜 ${escHtml(fmtDateDisp(b.dateReturn))}</div>`).join('')}
+        </div>`).join('')}
+    </div>` : '';
+
+  container.innerHTML = conflictCard + `
     <div class="dash-card">
       <div class="dash-card-head">
         <i class="ti ti-chart-bar" aria-hidden="true"></i>
