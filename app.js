@@ -141,9 +141,17 @@ function parseDate(str) {
   const d = new Date(s.replace(/　/g, ' '));
   return isNaN(d.getTime()) ? null : d;
 }
+
+// 搬入日から yyyyMMdd キー（持ち出しリストの現場を区別する用）
+function dateKeyOf(str) {
+  const d = parseDate(str);
+  if (!d) return '';
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
 let currentTab = 'all';
 let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1, loanIdx=-1;
 let loans = [];
+let pdDateKey = '';
 
 function calcSt(item) {
   if (['修理中','レンタル中','長期不在'].includes(item.status) && item.special > 0) return item.status;
@@ -319,7 +327,7 @@ function renderOut() {
   const groups = {};
   outItems.forEach((o,i) => {
     const key = o.project || '（案件名未入力）';
-    if (!groups[key]) groups[key] = {items:[], staff:o.staff, returnDate:o.returnDate};
+    if (!groups[key]) groups[key] = {items:[], staff:o.staff, returnDate:o.returnDate, dateOut:o.dateOut};
     groups[key].items.push({...o, outIdx:i});
   });
   container.innerHTML = loanHtml + Object.entries(groups).map(([project, g]) => {
@@ -357,7 +365,7 @@ function renderOut() {
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
-            <button class="act" onclick="downloadPickupList('${project}',event)" style="font-size:11px">
+            <button class="act" onclick="downloadPickupList('${project}','${dateKeyOf(g.dateOut)}',event)" style="font-size:11px">
               <i class="ti ti-file-download"></i> DL
             </button>
             <button class="act btn-bulk-return" onclick="bulkReturn('${project}',event)">
@@ -478,9 +486,9 @@ function renderHistory() {
   }).join('');
 }
 
-function downloadHistoryPickupList(project) {
+function downloadHistoryPickupList(project, dateKey) {
   // Dropboxの持ち出しリスト現物（受注書コピー＋転記済み）をダウンロード
-  downloadPickupList(project);
+  downloadPickupList(project, dateKey || '');
 }
 
 function switchTab(tab, el) {
@@ -837,6 +845,7 @@ function showProjectDetail(project, ev) {
   const dateRet = fmtDateDisp(items[0].returnDate || items[0].dateReturn);
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
+  pdDateKey = dateKeyOf(items[0].dateOut || items[0].date);
 
   const ownItems    = items.filter(function(o) { return o.note !== '[レンタル]' && o.note !== '(在庫管理外)'; });
   const rentalItems = items.filter(function(o) { return o.note === '[レンタル]'; });
@@ -1269,7 +1278,7 @@ function checkAutoReturn() {
   render();
 }
 
-function downloadPickupList(project, event) {
+function downloadPickupList(project, dateKey, event) {
   if (event) event.stopPropagation();
   if (!project) { alert('案件を選択してください'); return; }
   const cbName = 'pickupCallback_' + Date.now();
@@ -1289,7 +1298,7 @@ function downloadPickupList(project, event) {
   };
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
-  script.src = GAS_API_URL + '?action=pickupfile&callback=' + cbName + '&project=' + encodeURIComponent(project);
+  script.src = GAS_API_URL + '?action=pickupfile&callback=' + cbName + '&project=' + encodeURIComponent(project) + (dateKey ? '&dateKey=' + encodeURIComponent(dateKey) : '');
   script.onerror = function() {
     delete window[cbName]; script.remove();
     alert('取得に失敗しました');
@@ -1632,7 +1641,7 @@ function renderReservations() {
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
-            <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}',event)">
+            <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}','${dateKeyOf(g.dateOut)}',event)">
               <i class="ti ti-file-download"></i> DL
             </button>
             <button class="act" style="color:var(--danger-text)" onclick="cancelReservation('${project.replace(/'/g,"\\'")}',event)">
