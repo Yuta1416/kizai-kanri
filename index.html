@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -16,9 +17,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
-<div id="loading-screen">
-  <div class="spinner"></div>
-  <div class="loading-label">読み込み中...</div>
+<div id="loading-screen" style="position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999">
+  <div class="spinner" style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.15);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></div>
+  <div class="loading-label" style="font-size:13px;color:#94a3b8">読み込み中...</div>
 </div>
 <div class="app">
   <header class="topbar">
