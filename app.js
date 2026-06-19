@@ -355,9 +355,9 @@ function renderOut() {
       </div>`;
     // カテゴリでまとめて縦に表示
     const groupByCat = list => {
-      const cats = {}, order = [];
-      list.forEach(o => { const c = o.category || 'その他'; if (!cats[c]) { cats[c]=[]; order.push(c); } cats[c].push(o); });
-      return order.map(c => `<div class="pd-cat-head">${escHtml(c)}</div>` + cats[c].map(makeRow).join('')).join('');
+      let html = '', last = null;
+      list.forEach(o => { const c = o.category || 'その他'; if (c !== last) { html += `<div class="pd-cat-head">${escHtml(c)}</div>`; last = c; } html += makeRow(o); });
+      return html;
     };
     const itemRows = groupByCat(ownItems) +
       (rentalItems.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rentalItems.map(makeRow).join('') : '') +
@@ -869,17 +869,15 @@ function showProjectDetail(project, dateKey, ev) {
   const makeItemRow = function(o) {
     return '<div class="proj-item-row"><span class="proj-item-name">' + escHtml(o.model||'') + '</span><span class="proj-item-qty">×' + o.qty + '</span></div>';
   };
-  // カテゴリでまとめて縦に表示
+  // エクセルの読み込み順（セクション→A-D→G-J→M-P）を保ち、カテゴリが変わったら見出しを出す
   const groupByCat = function(list) {
-    const cats = {}, order = [];
+    let html = '', last = null;
     list.forEach(function(o) {
       const c = o.category || 'その他';
-      if (!cats[c]) { cats[c] = []; order.push(c); }
-      cats[c].push(o);
+      if (c !== last) { html += '<div class="pd-cat-head">' + escHtml(c) + '</div>'; last = c; }
+      html += makeItemRow(o);
     });
-    return order.map(function(c) {
-      return '<div class="pd-cat-head">' + escHtml(c) + '</div>' + cats[c].map(makeItemRow).join('');
-    }).join('');
+    return html;
   };
   const itemRows = groupByCat(ownItems) +
     (rentalItems.length ? '<div class="pd-cat-head pd-cat-rental">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '') +
@@ -1694,9 +1692,9 @@ function renderReservations() {
     const rental = g.items.filter(r => r.note === '[レンタル]');
     const free   = g.items.filter(r => r.note === '(在庫管理外)');
     const groupByCat = list => {
-      const cats = {}, order = [];
-      list.forEach(r => { const c = r.category || 'その他'; if (!cats[c]) { cats[c]=[]; order.push(c); } cats[c].push(r); });
-      return order.map(c => `<div class="pd-cat-head">${escHtml(c)}</div>` + cats[c].map(makeRow).join('')).join('');
+      let html = '', last = null;
+      list.forEach(r => { const c = r.category || 'その他'; if (c !== last) { html += `<div class="pd-cat-head">${escHtml(c)}</div>`; last = c; } html += makeRow(r); });
+      return html;
     };
     const rows = groupByCat(own) +
       (rental.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rental.map(makeRow).join('') : '') +
