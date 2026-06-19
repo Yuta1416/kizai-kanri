@@ -548,7 +548,6 @@ function bulkReturn(project, dateKey, e) {
         if (json.updated === 0) {
           alert('⚠️ スプレッドシートで該当案件が見つかりませんでした。\n案件名: ' + json.project);
         }
-        localStorage.removeItem(CACHE_KEY);
         fetchFromSpreadsheet();
       } else {
         alert('返却の保存に失敗しました。再度お試しください。');
@@ -1006,9 +1005,8 @@ function showLoading(on) {
   }
 }
 
-const CACHE_KEY = 'kizai_data_cache';
-function saveCache(json) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(json)); } catch(e) {} }
-function loadCache()     { try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch(e) { return null; } }
+// キャッシュ廃止（常にGASから最新データを取得）
+try { localStorage.removeItem('kizai_data_cache'); } catch(e) {}
 
 function applyData(json) {
   if (json.inventory && json.inventory.length > 0) {
@@ -1110,15 +1108,6 @@ function fetchFromSpreadsheet() {
     return;
   }
 
-  // キャッシュがあれば即表示してローディングを隠す
-  const cached = loadCache();
-  if (cached) {
-    applyData(cached);
-    render();
-    if (currentTab === 'dashboard') renderDashboard();
-    showLoading(false);
-    document.getElementById('cache-banner').classList.add('show');
-  }
   fetchShiftFile();
   fetchStaffShiftFile();
 
@@ -1129,12 +1118,9 @@ function fetchFromSpreadsheet() {
     if (el) el.remove();
 
     applyData(json);
-    saveCache(json);
-
     render();
     if (currentTab === 'dashboard') renderDashboard();
     showLoading(false);
-    document.getElementById('cache-banner').classList.remove('show');
   };
 
   const script = document.createElement('script');
@@ -1144,7 +1130,7 @@ function fetchFromSpreadsheet() {
     console.error('GAS接続エラー');
     delete window[cbName];
     script.remove();
-    if (!cached) render();
+    render();
     showLoading(false);
   };
   document.body.appendChild(script);
@@ -1732,7 +1718,11 @@ function cancelReservation(project, dateKey, e) {
   renderReservations();
   if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
     const cbName = 'cancelCb_' + Date.now();
-    window[cbName] = function(json) { delete window[cbName]; document.getElementById('jsonp_'+cbName)?.remove(); };
+    window[cbName] = function(json) {
+      delete window[cbName];
+      document.getElementById('jsonp_'+cbName)?.remove();
+      fetchFromSpreadsheet();
+    };
     const script = document.createElement('script');
     script.id = 'jsonp_' + cbName;
     script.src = GAS_API_URL + '?action=cancel_reservation&project=' + encodeURIComponent(project) + (dateKey ? '&dateKey=' + dateKey : '') + '&callback=' + cbName;
