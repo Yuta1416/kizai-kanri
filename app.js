@@ -154,6 +154,7 @@ let loans = [];
 let rentalRanking = [];
 let conflicts = [];
 let pdDateKey = '';
+let pdProject = '';
 
 function calcSt(item) {
   if (['修理中','レンタル中','長期不在'].includes(item.status) && item.special > 0) return item.status;
@@ -328,11 +329,16 @@ function renderOut() {
   }
   const groups = {};
   outItems.forEach((o,i) => {
-    const key = o.project || '（案件名未入力）';
-    if (!groups[key]) groups[key] = {items:[], staff:o.staff, returnDate:o.returnDate, dateOut:o.dateOut};
+    const proj = o.project || '（案件名未入力）';
+    const dk = dateKeyOf(o.dateOut);
+    const key = proj + '｜' + dk;  // 同名現場でも搬入日で分ける
+    if (!groups[key]) groups[key] = {items:[], project:proj, dateKey:dk, staff:o.staff, returnDate:o.returnDate, dateOut:o.dateOut};
     groups[key].items.push({...o, outIdx:i});
   });
-  container.innerHTML = loanHtml + Object.entries(groups).map(([project, g]) => {
+  container.innerHTML = loanHtml + Object.values(groups).map(g => {
+    const project = g.project;
+    const _d = parseDate(g.dateOut);
+    const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
     const autoLabel = g.returnDate
       ? `<span class="badge s-info" style="font-size:10px"><i class="ti ti-clock"></i> 自動 ${g.returnDate}</span>`
       : `<span class="badge s-absent" style="font-size:10px">手動返却</span>`;
@@ -361,16 +367,16 @@ function renderOut() {
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
             <i class="ti ti-chevron-down proj-chevron"></i>
-            <span class="proj-group-name">${project}</span>
+            <span class="proj-group-name">${project}${_md}</span>
             <span class="proj-group-meta">${g.staff||'担当未入力'}</span>
             ${autoLabel}
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
-            <button class="act" onclick="downloadPickupList('${project}','${dateKeyOf(g.dateOut)}',event)" style="font-size:11px">
+            <button class="act" onclick="downloadPickupList('${project}','${g.dateKey}',event)" style="font-size:11px">
               <i class="ti ti-file-download"></i> DL
             </button>
-            <button class="act btn-bulk-return" onclick="bulkReturn('${project}',event)">
+            <button class="act btn-bulk-return" onclick="bulkReturn('${project}','${g.dateKey}',event)">
               <i class="ti ti-rotate"></i> 一括返却
             </button>
           </div>
@@ -514,18 +520,20 @@ function toggleGroup(head) {
   chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
 }
 
-function bulkReturn(project, e) {
-  e.stopPropagation();
+function bulkReturn(project, dateKey, e) {
+  if (e) e.stopPropagation();
+  if (dateKey && typeof dateKey === 'object') { e = dateKey; dateKey = ''; }
   if (!confirm(`「${project}」の機材を全て返却しますか？`)) return;
   const now = new Date().toLocaleString('ja-JP');
-  outItems.filter(o => (o.project||'（案件名未入力）') === project).forEach(o => {
+  const match = o => (o.project||'（案件名未入力）') === project && (!dateKey || dateKeyOf(o.dateOut) === dateKey);
+  outItems.filter(match).forEach(o => {
     if (o.invIdx >= 0 && o.invIdx < inv.length) {
       inv[o.invIdx].out = Math.max(0, inv[o.invIdx].out - o.qty);
     }
     history.push({date:now, project:o.project, staff:o.staff, model:o.model, qty:o.qty, action:'一括返却', note:''});
   });
   for (let i = outItems.length-1; i >= 0; i--) {
-    if ((outItems[i].project||'（案件名未入力）') === project) outItems.splice(i,1);
+    if (match(outItems[i])) outItems.splice(i,1);
   }
   render();
 
@@ -552,7 +560,7 @@ function bulkReturn(project, e) {
       delete window[cbName2]; script2.remove();
       alert('返却の保存に失敗しました。再度お試しください。');
     };
-    script2.src = GAS_API_URL + '?action=return&project=' + encodeURIComponent(project) + '&callback=' + cbName2;
+    script2.src = GAS_API_URL + '?action=return&project=' + encodeURIComponent(project) + (dateKey ? '&dateKey=' + dateKey : '') + '&callback=' + cbName2;
     document.body.appendChild(script2);
   }
 }
@@ -830,16 +838,18 @@ function fmtDateDisp(str) {
   return s;
 }
 
-function showProjectDetail(project, ev) {
+function showProjectDetail(project, dateKey, ev) {
   if (ev) ev.stopPropagation();
-  const key = p => (p || '（案件名未入力）') === project;
-  const projectItems = outItems.filter(o => key(o.project));
+  if (dateKey && typeof dateKey === 'object') { ev = dateKey; dateKey = ''; } // 旧呼び出し互換
+  const matchKey = p => (p || '（案件名未入力）') === project;
+  const matchDate = o => !dateKey || dateKeyOf(o.dateOut || o.date) === dateKey;
+  const projectItems = outItems.filter(o => matchKey(o.project) && matchDate(o));
   // 予約中の機材（itemName→model, dateReturn→returnDate に正規化）
-  const resItems = (reservations || []).filter(r => key(r.project)).map(r => ({
+  const resItems = (reservations || []).filter(r => matchKey(r.project) && (!dateKey || dateKeyOf(r.dateOut) === dateKey)).map(r => ({
     model: r.itemName, qty: r.qty, category: r.category, note: r.note,
     dateOut: r.dateOut, returnDate: r.dateReturn, staff: r.staff, vehicle: r.vehicle, date: r.dateOut
   }));
-  const histItems = history.filter(h => key(h.project));
+  const histItems = history.filter(h => matchKey(h.project)); // 履歴は搬入日が無いので案件名のみ
   const items = projectItems.length > 0 ? projectItems : (resItems.length > 0 ? resItems : histItems);
   if (!items.length) return;
 
@@ -847,7 +857,11 @@ function showProjectDetail(project, ev) {
   const dateRet = fmtDateDisp(items[0].returnDate || items[0].dateReturn);
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
-  pdDateKey = dateKeyOf(items[0].dateOut || items[0].date);
+  pdProject = project;
+  pdDateKey = dateKey || dateKeyOf(items[0].dateOut || items[0].date);
+  // タイトルに搬入日を付けて同名現場を区別
+  const _d = parseDate(items[0].dateOut || items[0].date);
+  const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
 
   const ownItems    = items.filter(function(o) { return o.note !== '[レンタル]' && o.note !== '(在庫管理外)'; });
   const rentalItems = items.filter(function(o) { return o.note === '[レンタル]'; });
@@ -871,7 +885,7 @@ function showProjectDetail(project, ev) {
     (rentalItems.length ? '<div class="pd-cat-head pd-cat-rental">レンタル品</div>' + rentalItems.map(makeItemRow).join('') : '') +
     (freeItems.length ? '<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>' + freeItems.map(makeItemRow).join('') : '');
 
-  document.getElementById('pd-project').textContent = project;
+  document.getElementById('pd-project').textContent = project + _md;
   document.getElementById('pd-staff').textContent   = staff;
   document.getElementById('pd-dateout').textContent = dateOut;
   document.getElementById('pd-dateret').textContent = dateRet;
@@ -1241,7 +1255,8 @@ function renderDashboard() {
       const isRet = e.startsWith('返却');
       const proj = isRet ? e.replace('返却: ','') : e;
       const label = e.length > 8 ? e.slice(0,8)+'…' : e;
-      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" onclick="showProjectDetail(this.dataset.project,event)" style="cursor:pointer">' + label + '</div>';
+      const _dk = isRet ? '' : (year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0'));
+      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
@@ -1553,7 +1568,8 @@ function renderTopPage() {
       const isRet = e.startsWith('返却');
       const proj = isRet ? e.replace('返却: ','') : e;
       const label = e.length > 8 ? e.slice(0,8)+'…' : e;
-      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" onclick="showProjectDetail(this.dataset.project,event)" style="cursor:pointer">' + label + '</div>';
+      const _dk = isRet ? '' : (year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0'));
+      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
   }
@@ -1597,13 +1613,13 @@ function renderTopPage() {
     (reservations || []).forEach(r => {
       const d = parseDate(r.dateOut);
       if (d && d >= today && d <= week) {
-        items.push({ date: d, project: r.project || '（未入力）', staff: r.staff || '', items: r.itemName || '', type: 'reserve' });
+        items.push({ date: d, project: r.project || '（未入力）', staff: r.staff || '', items: r.itemName || '', type: 'reserve', dateKey: dateKeyOf(r.dateOut) });
       }
     });
     (outItems || []).forEach(o => {
       const d = parseDate(o.returnDate || o.dateReturn || o.dateOut);
       if (d && d >= today && d <= week) {
-        items.push({ date: d, project: o.project || '（未入力）', staff: o.staff || '', items: o.itemName || '', type: 'out' });
+        items.push({ date: d, project: o.project || '（未入力）', staff: o.staff || '', items: o.itemName || '', type: 'out', dateKey: dateKeyOf(o.dateOut) });
       }
     });
     items.sort((a,b) => a.date - b.date);
@@ -1621,7 +1637,7 @@ function renderTopPage() {
       upcomingEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">今後1週間の予約はありません</div>';
     } else {
       upcomingEl.innerHTML = rows.map(r => `
-        <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start;cursor:pointer" onclick="showProjectDetail(${JSON.stringify(r.project)})">
+        <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start;cursor:pointer" data-project="${escHtml(r.project)}" data-datekey="${r.dateKey||''}" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)">
           <div style="background:${r.type==='reserve'?'var(--info-bg)':'var(--warn-bg)'};color:${r.type==='reserve'?'var(--info-text)':'var(--warn-text)'};border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${dateLabel(r.date)}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text);text-decoration:underline;text-underline-offset:2px">${escHtml(r.project)}</div>
@@ -1659,11 +1675,16 @@ function renderReservations() {
   }
   const groups = {};
   reservations.forEach(r => {
-    const key = r.project || '（案件名未入力）';
-    if (!groups[key]) groups[key] = { items: [], staff: r.staff, dateOut: r.dateOut, dateReturn: r.dateReturn, vehicle: r.vehicle || '' };
+    const proj = r.project || '（案件名未入力）';
+    const dk = dateKeyOf(r.dateOut);
+    const key = proj + '｜' + dk;  // 同名現場でも搬入日で分ける
+    if (!groups[key]) groups[key] = { items: [], project: proj, dateKey: dk, staff: r.staff, dateOut: r.dateOut, dateReturn: r.dateReturn, vehicle: r.vehicle || '' };
     groups[key].items.push(r);
   });
-  container.innerHTML = Object.entries(groups).map(([project, g]) => {
+  container.innerHTML = Object.values(groups).map(g => {
+    const project = g.project;
+    const _d = parseDate(g.dateOut);
+    const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
     const makeRow = r => `
       <div class="proj-item-row">
         <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}</span>
@@ -1685,17 +1706,17 @@ function renderReservations() {
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
             <i class="ti ti-chevron-down proj-chevron"></i>
-            <span class="proj-group-name">${escHtml(project)}</span>
+            <span class="proj-group-name">${escHtml(project)}${_md}</span>
             <span class="proj-group-meta">${escHtml(g.staff||'担当未入力')}</span>
             <span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(g.dateOut)}</span>
             ${g.vehicle ? `<span class="badge" style="font-size:10px;background:var(--border);color:var(--text2)"><i class="ti ti-car"></i> ${escHtml(g.vehicle)}</span>` : ''}
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
-            <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}','${dateKeyOf(g.dateOut)}',event)">
+            <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}','${g.dateKey}',event)">
               <i class="ti ti-file-download"></i> DL
             </button>
-            <button class="act" style="color:var(--danger-text)" onclick="cancelReservation('${project.replace(/'/g,"\\'")}',event)">
+            <button class="act" style="color:var(--danger-text)" onclick="cancelReservation('${project.replace(/'/g,"\\'")}','${g.dateKey}',event)">
               <i class="ti ti-x"></i> キャンセル
             </button>
           </div>
@@ -1705,17 +1726,18 @@ function renderReservations() {
   }).join('');
 }
 
-function cancelReservation(project, e) {
-  e.stopPropagation();
+function cancelReservation(project, dateKey, e) {
+  if (e) e.stopPropagation();
+  if (dateKey && typeof dateKey === 'object') { e = dateKey; dateKey = ''; }
   if (!confirm(`「${project}」の予約をキャンセルしますか？`)) return;
-  reservations = reservations.filter(r => (r.project || '（案件名未入力）') !== project);
+  reservations = reservations.filter(r => !((r.project || '（案件名未入力）') === project && (!dateKey || dateKeyOf(r.dateOut) === dateKey)));
   renderReservations();
   if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
     const cbName = 'cancelCb_' + Date.now();
     window[cbName] = function(json) { delete window[cbName]; document.getElementById('jsonp_'+cbName)?.remove(); };
     const script = document.createElement('script');
     script.id = 'jsonp_' + cbName;
-    script.src = GAS_API_URL + '?action=cancel_reservation&project=' + encodeURIComponent(project) + '&callback=' + cbName;
+    script.src = GAS_API_URL + '?action=cancel_reservation&project=' + encodeURIComponent(project) + (dateKey ? '&dateKey=' + dateKey : '') + '&callback=' + cbName;
     document.body.appendChild(script);
   }
 }
