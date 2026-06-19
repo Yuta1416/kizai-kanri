@@ -1,6 +1,6 @@
-const CACHE_NAME = 'kizai-cache-v4';
+const CACHE_NAME = 'kizai-cache-v5';
 
-// 確実にキャッシュしたいローカルアセット
+// オフライン用に保持したいローカルアセット
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +11,7 @@ const CORE_ASSETS = [
   '/icon-512.png',
 ];
 
-// インストール時：ローカルアセットのみキャッシュ（失敗しても続行）
+// インストール時：ローカルアセットをキャッシュ（失敗しても続行）
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
@@ -21,46 +21,59 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// 古いキャッシュを削除
+// 古いキャッシュを削除して即時制御
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// HTML/JS/CSS は常に最新を取りに行く（network-first）。
+// オフライン時のみキャッシュにフォールバック。画像等は cache-first。
 self.addEventListener('fetch', event => {
-  const url = event.request.url;
+  const req = event.request;
+  const url = req.url;
 
-  // GAS APIはキャッシュしない（オフライン時はスキップ）
+  // GAS API はキャッシュしない
   if (url.includes('script.google.com')) return;
+  if (req.method !== 'GET') return;
 
-  // ローカルアセット：キャッシュ優先（オフラインでも動く）
   const isLocal = url.startsWith(self.location.origin);
-  if (isLocal) {
+
+  // アプリ本体（HTML/JS/CSS・ナビゲーション）は network-first で常に最新
+  const isAppCode = req.mode === 'navigate' || url.endsWith('/') || /\.(html|js|css)(\?.*)?$/.test(url);
+
+  if (isAppCode) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          return response;
-        });
-      })
+      fetch(req).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+        return response;
+      }).catch(() => caches.match(req).then(c => c || caches.match('/index.html')))
     );
     return;
   }
 
-  // 外部CDN（fonts、icons）：ネットワーク優先、失敗時はキャッシュ
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
+  // ローカルの画像・manifest など：cache-first（変化が少ない）
+  if (isLocal) {
+    event.respondWith(
+      caches.match(req).then(cached => cached || fetch(req).then(response => {
         const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
         return response;
-      })
-      .catch(() => caches.match(event.request))
+      }))
+    );
+    return;
+  }
+
+  // 外部CDN（フォント・アイコン）：network-first
+  event.respondWith(
+    fetch(req).then(response => {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+      return response;
+    }).catch(() => caches.match(req))
   );
 });
