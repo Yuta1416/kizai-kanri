@@ -1721,6 +1721,8 @@ function cancelReservation(project, dateKey, e) {
     window[cbName] = function(json) {
       delete window[cbName];
       document.getElementById('jsonp_'+cbName)?.remove();
+      // 一時診断: 削除件数を確認
+      alert('キャンセル結果: status=' + json.status + ', deleted=' + json.deleted + ', msg=' + (json.message||'なし'));
       fetchFromSpreadsheet();
     };
     const script = document.createElement('script');
