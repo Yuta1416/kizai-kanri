@@ -469,7 +469,7 @@ function renderHistory() {
               <span class="proj-group-meta">${g.staff||''}</span>
             </div>
             <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">
-              <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();downloadHistoryPickupList(${JSON.stringify(project)})"><i class="ti ti-file-download"></i> リストDL</button>
+              <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();downloadHistoryPickupList('${project.replace(/'/g,"\\'")}')"><i class="ti ti-file-download"></i> リストDL</button>
               <span class="proj-count">${g.items.length}件</span>
             </div>
           </div>
