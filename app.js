@@ -1160,13 +1160,15 @@ function applyData(json) {
   if (json.history && json.history.length > 0) {
     const gasHistory = json.history.map(function(h) {
       return {
-        date:    h.date    || '',
-        project: h.project || '',
-        staff:   h.staff   || '',
-        model:   h.model   || '',
-        qty:     parseInt(h.qty) || 0,
-        action:  h.action  || 'OUT',
-        note:    h.note    || '',
+        date:     h.date     || '',
+        project:  h.project  || '',
+        staff:    h.staff    || '',
+        model:    h.model    || '',
+        qty:      parseInt(h.qty) || 0,
+        action:   h.action   || 'OUT',
+        note:     h.note     || '',
+        category: h.category || '',
+        kind:     h.kind     || '',
       };
     });
     const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
