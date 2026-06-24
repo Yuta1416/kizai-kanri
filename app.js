@@ -406,6 +406,14 @@ function renderSpecial() {
 
 function renderHistory() {
   const container = document.getElementById('hist-container');
+  try {
+    _renderHistoryInner(container);
+  } catch(e) {
+    container.innerHTML = `<div class="empty" style="color:#f99;padding:1rem;text-align:left;white-space:pre-wrap;font-family:monospace;font-size:11px">renderHistoryエラー: ${e.message}\n\nstack:\n${e.stack||''}</div>`;
+  }
+}
+
+function _renderHistoryInner(container) {
   if (!history.length) {
     container.innerHTML = `<div class="empty">履歴がありません</div>`;
     return;
