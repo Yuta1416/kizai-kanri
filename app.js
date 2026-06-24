@@ -484,13 +484,14 @@ function _renderHistoryInner(container) {
           h.action==='自動返却'||h.action==='一括返却'?'s-info':
           h.action==='持ち出し中'?'s-out':'s-in';
         const actionLabel = h.action==='持ち出し中' ? 'OUT' : h.action;
+        const makerLabel = (h.kind === '[レンタル]' && h.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(h.maker)}）</span>` : '';
         return `
           <div class="proj-item-row">
             <span style="font-size:11px;color:var(--text2);min-width:120px">${h.date}</span>
-            <span class="proj-item-name">${h.model}</span>
+            <span class="proj-item-name">${escHtml(String(h.model||''))}${makerLabel}</span>
             <span class="proj-item-qty">×${h.qty}</span>
             <span class="badge ${cls}" style="font-size:10px">${actionLabel}</span>
-            <span style="font-size:11px;color:var(--text2)">${h.note||''}</span>
+            <span style="font-size:11px;color:var(--text2)">${escHtml(h.note||'')}</span>
           </div>`;
       };
       // 種別で先に振り分け（履歴シートのkind列を優先、無ければ在庫マスター逆引き）
@@ -1169,6 +1170,7 @@ function applyData(json) {
         note:     h.note     || '',
         category: h.category || '',
         kind:     h.kind     || '',
+        maker:    h.maker    || '',
       };
     });
     const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
