@@ -444,9 +444,30 @@ function renderHistory() {
     monthGroups[ym][project].items.push(h);
   });
 
+  // 機材名→カテゴリの逆引き（在庫マスター inv から）
+  const lookupCategory = (modelName) => {
+    if (!modelName) return null;
+    // 完全一致（maker+model または model 単独）
+    for (const it of inv) {
+      if (it.model === modelName) return it.cat;
+      if ((it.maker + ' ' + it.model) === modelName) return it.cat;
+    }
+    // 最長部分一致
+    let bestCat = null, bestLen = 0;
+    for (const it of inv) {
+      if (!it.model) continue;
+      if (modelName.includes(it.model) && it.model.length > bestLen) {
+        bestCat = it.cat; bestLen = it.model.length;
+      }
+    }
+    return bestCat;
+  };
+  // 在庫マスターでのカテゴリ出現順
+  const catOrder = [...new Set(inv.map(i => i.cat))];
+
   container.innerHTML = Object.entries(monthGroups).map(([ym, projects]) => {
     const projectRows = Object.entries(projects).map(([project, g]) => {
-      const itemRows = g.items.map(h => {
+      const makeRow = h => {
         const cls = h.action==='OUT'?'s-out':
           h.action==='自動返却'||h.action==='一括返却'?'s-info':
           h.action==='持ち出し中'?'s-out':'s-in';
@@ -459,7 +480,29 @@ function renderHistory() {
             <span class="badge ${cls}" style="font-size:10px">${actionLabel}</span>
             <span style="font-size:11px;color:var(--text2)">${h.note||''}</span>
           </div>`;
-      }).join('');
+      };
+      // カテゴリ別に仕分け（自社品はカテゴリ別、見つからないものはレンタル/その他）
+      const byCat = {};
+      const others = [];
+      g.items.forEach(h => {
+        const cat = lookupCategory(h.model);
+        if (cat) {
+          if (!byCat[cat]) byCat[cat] = [];
+          byCat[cat].push(h);
+        } else {
+          others.push(h);
+        }
+      });
+      let itemRows = '';
+      catOrder.forEach(cat => {
+        if (!byCat[cat] || !byCat[cat].length) return;
+        itemRows += `<div class="pd-cat-head">${escHtml(cat)}</div>`;
+        byCat[cat].forEach(h => itemRows += makeRow(h));
+      });
+      if (others.length) {
+        itemRows += `<div class="pd-cat-head pd-cat-rental">レンタル品 / その他</div>`;
+        others.forEach(h => itemRows += makeRow(h));
+      }
       return `
         <div class="proj-group" style="margin:6px 0 0 0">
           <div class="proj-group-head" onclick="toggleGroup(this)" style="background:var(--bg)">
