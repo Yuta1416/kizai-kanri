@@ -345,14 +345,17 @@ function renderOut() {
     const ownItems    = g.items.filter(o => o.note !== '[レンタル]' && o.note !== '(在庫管理外)');
     const rentalItems = g.items.filter(o => o.note === '[レンタル]');
     const freeItems   = g.items.filter(o => o.note === '(在庫管理外)');
-    const makeRow = o => `
+    const makeRow = o => {
+      const mkLabel = (o.note === '[レンタル]' && o.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(o.maker)}）</span>` : '';
+      return `
       <div class="proj-item-row">
-        <span class="proj-item-name">${o.model}</span>
+        <span class="proj-item-name">${escHtml(String(o.model||''))}${mkLabel}</span>
         <span class="proj-item-qty">×${o.qty}</span>
         <button class="act" style="padding:3px 8px;font-size:11px" onclick="openReturnFromOut(${o.outIdx})">
           <i class="ti ti-arrow-down-left"></i> 返却
         </button>
       </div>`;
+    };
     // カテゴリでまとめて縦に表示
     const groupByCat = list => {
       let html = '', last = null;
@@ -1129,6 +1132,7 @@ function applyData(json) {
           date:       String(r.date       || ''),
           vehicle:    String(r.vehicle    || ''),
           note:       String(r.note       || ''),
+          maker:      String(r.maker      || ''),
         };
       });
 
@@ -1749,11 +1753,14 @@ function renderReservations() {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
-    const makeRow = r => `
+    const makeRow = r => {
+      const mkLabel = (r.note === '[レンタル]' && r.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(r.maker)}）</span>` : '';
+      return `
       <div class="proj-item-row">
-        <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}</span>
+        <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}${mkLabel}</span>
         <span class="proj-item-qty">×${r.qty}</span>
       </div>`;
+    };
     const own    = g.items.filter(r => r.note !== '[レンタル]' && r.note !== '(在庫管理外)');
     const rental = g.items.filter(r => r.note === '[レンタル]');
     const free   = g.items.filter(r => r.note === '(在庫管理外)');
