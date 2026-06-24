@@ -493,11 +493,16 @@ function _renderHistoryInner(container) {
             <span style="font-size:11px;color:var(--text2)">${h.note||''}</span>
           </div>`;
       };
-      // カテゴリ別に仕分け（自社品はカテゴリ別、見つからないものはレンタル/その他）
+      // 種別で先に振り分け（履歴シートのkind列を優先、無ければ在庫マスター逆引き）
       const byCat = {};
+      const rentals = [];
+      const frees = [];
       const others = [];
       g.items.forEach(h => {
-        const cat = lookupCategory(h.model);
+        if (h.kind === '[レンタル]') { rentals.push(h); return; }
+        if (h.kind === '(在庫管理外)') { frees.push(h); return; }
+        // 履歴シートにカテゴリがあればそれを使う、無ければ逆引き
+        const cat = h.category || lookupCategory(h.model);
         if (cat) {
           if (!byCat[cat]) byCat[cat] = [];
           byCat[cat].push(h);
@@ -506,13 +511,29 @@ function _renderHistoryInner(container) {
         }
       });
       let itemRows = '';
+      // 在庫マスター出現順に並べ、その後に履歴のみに存在するカテゴリを追加
+      const seenCats = new Set();
       catOrder.forEach(cat => {
         if (!byCat[cat] || !byCat[cat].length) return;
         itemRows += `<div class="pd-cat-head">${escHtml(cat)}</div>`;
         byCat[cat].forEach(h => itemRows += makeRow(h));
+        seenCats.add(cat);
       });
+      Object.keys(byCat).forEach(cat => {
+        if (seenCats.has(cat)) return;
+        itemRows += `<div class="pd-cat-head">${escHtml(cat)}</div>`;
+        byCat[cat].forEach(h => itemRows += makeRow(h));
+      });
+      if (rentals.length) {
+        itemRows += `<div class="pd-cat-head pd-cat-rental">レンタル品</div>`;
+        rentals.forEach(h => itemRows += makeRow(h));
+      }
+      if (frees.length) {
+        itemRows += `<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>`;
+        frees.forEach(h => itemRows += makeRow(h));
+      }
       if (others.length) {
-        itemRows += `<div class="pd-cat-head pd-cat-rental">レンタル品 / その他</div>`;
+        itemRows += `<div class="pd-cat-head">その他</div>`;
         others.forEach(h => itemRows += makeRow(h));
       }
       return `
