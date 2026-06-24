@@ -507,7 +507,7 @@ function renderHistory() {
         <div class="proj-group" style="margin:6px 0 0 0">
           <div class="proj-group-head" onclick="toggleGroup(this)" style="background:var(--bg)">
             <div class="proj-group-left">
-              <i class="ti ti-chevron-down proj-chevron"></i>
+              <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
               <span class="proj-group-name" style="font-size:13px">${project}</span>
               <span class="proj-group-meta">${g.staff||''}</span>
             </div>
@@ -516,7 +516,7 @@ function renderHistory() {
               <span class="proj-count">${g.items.length}件</span>
             </div>
           </div>
-          <div class="proj-group-body">${itemRows}</div>
+          <div class="proj-group-body" style="display:none">${itemRows}</div>
         </div>`;
     }).join('');
 
