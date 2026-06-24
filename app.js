@@ -173,6 +173,13 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// 現場名に [貸出] [東京] が入っていたら貸出バッジを返す
+function loanBadge(projectName) {
+  return /\[(貸出|東京|LOAN|loan)\]/i.test(String(projectName||''))
+    ? '<span style="display:inline-block;background:#9C27B0;color:#fff;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:600">🚚 貸出</span>'
+    : '';
+}
+
 function render() {
   renderStats();
   renderCats();
@@ -370,7 +377,7 @@ function renderOut() {
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
             <i class="ti ti-chevron-down proj-chevron"></i>
-            <span class="proj-group-name">${project}${_md}</span>
+            <span class="proj-group-name">${project}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${g.staff||'担当未入力'}</span>
             ${autoLabel}
           </div>
@@ -545,7 +552,7 @@ function _renderHistoryInner(container) {
           <div class="proj-group-head" onclick="toggleGroup(this)" style="background:var(--bg)">
             <div class="proj-group-left">
               <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
-              <span class="proj-group-name" style="font-size:13px">${project}</span>
+              <span class="proj-group-name" style="font-size:13px">${project}${loanBadge(project)}</span>
               <span class="proj-group-meta">${g.staff||''}</span>
             </div>
             <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">
@@ -1777,7 +1784,7 @@ function renderReservations() {
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
             <i class="ti ti-chevron-down proj-chevron"></i>
-            <span class="proj-group-name">${escHtml(project)}${_md}</span>
+            <span class="proj-group-name">${escHtml(project)}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${escHtml(g.staff||'担当未入力')}</span>
             <span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(g.dateOut)}</span>
             ${g.vehicle ? `<span class="badge" style="font-size:10px;background:var(--border);color:var(--text2)"><i class="ti ti-car"></i> ${escHtml(g.vehicle)}</span>` : ''}
