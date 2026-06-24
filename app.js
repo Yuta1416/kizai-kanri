@@ -454,18 +454,22 @@ function _renderHistoryInner(container) {
 
   // 機材名→カテゴリの逆引き（在庫マスター inv から）
   const lookupCategory = (modelName) => {
-    if (!modelName) return null;
+    const mn = String(modelName || '');
+    if (!mn) return null;
     // 完全一致（maker+model または model 単独）
     for (const it of inv) {
-      if (it.model === modelName) return it.cat;
-      if ((it.maker + ' ' + it.model) === modelName) return it.cat;
+      const im = String(it.model || '');
+      const imk = String(it.maker || '');
+      if (im === mn) return it.cat;
+      if ((imk + ' ' + im) === mn) return it.cat;
     }
     // 最長部分一致
     let bestCat = null, bestLen = 0;
     for (const it of inv) {
-      if (!it.model) continue;
-      if (modelName.includes(it.model) && it.model.length > bestLen) {
-        bestCat = it.cat; bestLen = it.model.length;
+      const im = String(it.model || '');
+      if (!im) continue;
+      if (mn.includes(im) && im.length > bestLen) {
+        bestCat = it.cat; bestLen = im.length;
       }
     }
     return bestCat;
