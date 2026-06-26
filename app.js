@@ -588,8 +588,8 @@ function downloadHistoryPickupList(project, dateKey) {
 
 function switchTab(tab, el) {
   currentTab = tab;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-  el.classList.add('on');
+  // 上部タブ＋スマホ下部ボトムナビの両方を data-tab で同期
+  document.querySelectorAll('[data-tab]').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
   ['all','inventory','out','special','reserve','history','dashboard'].forEach(t => {
     const v = document.getElementById('view-'+t);
     if (v) v.style.display = t===tab ? 'block' : 'none';
@@ -597,6 +597,8 @@ function switchTab(tab, el) {
   render();
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
   if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
+  // ビュー切替時は最上部へスクロール（スマホで見やすく）
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
 function toggleGroup(head) {

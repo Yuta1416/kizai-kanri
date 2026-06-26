@@ -17,9 +17,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
-<div id="loading-screen" style="position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999">
-  <div class="spinner" style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.15);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></div>
-  <div class="loading-label" style="font-size:13px;color:#94a3b8">読み込み中...</div>
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-label">読み込み中...</div>
 </div>
 <div class="app">
   <header class="topbar">
@@ -51,13 +51,13 @@
   </div>
 
   <nav class="tab-bar">
-    <button class="tab on" onclick="switchTab('all',this)">ホーム</button>
-    <button class="tab" onclick="switchTab('inventory',this)">在庫</button>
-    <button class="tab" onclick="switchTab('out',this)">持ち出し中</button>
-    <button class="tab" onclick="switchTab('reserve',this)">持ち出し予約</button>
-    <button class="tab" onclick="switchTab('special',this)">修理・レンタル・不在</button>
-    <button class="tab" onclick="switchTab('history',this)">履歴</button>
-    <button class="tab" onclick="switchTab('dashboard',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> ダッシュボード</button>
+    <button class="tab on" data-tab="all" onclick="switchTab('all',this)"><i class="ti ti-home" aria-hidden="true"></i> ホーム</button>
+    <button class="tab" data-tab="inventory" onclick="switchTab('inventory',this)"><i class="ti ti-box" aria-hidden="true"></i> 在庫</button>
+    <button class="tab" data-tab="out" onclick="switchTab('out',this)"><i class="ti ti-arrow-up-right" aria-hidden="true"></i> 持ち出し中</button>
+    <button class="tab" data-tab="reserve" onclick="switchTab('reserve',this)"><i class="ti ti-calendar-time" aria-hidden="true"></i> 持ち出し予約</button>
+    <button class="tab" data-tab="special" onclick="switchTab('special',this)"><i class="ti ti-tool" aria-hidden="true"></i> 修理・レンタル・不在</button>
+    <button class="tab" data-tab="history" onclick="switchTab('history',this)"><i class="ti ti-history" aria-hidden="true"></i> 履歴</button>
+    <button class="tab" data-tab="dashboard" onclick="switchTab('dashboard',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> ダッシュボード</button>
   </nav>
 
   <div id="view-all">
@@ -283,6 +283,16 @@
     </div>
   </div>
 </div>
+
+<!-- スマホ用ボトムナビ -->
+<nav class="bottom-nav">
+  <button class="bnav-item on" data-tab="all" onclick="switchTab('all',this)"><i class="ti ti-home" aria-hidden="true"></i><span>ホーム</span></button>
+  <button class="bnav-item" data-tab="inventory" onclick="switchTab('inventory',this)"><i class="ti ti-box" aria-hidden="true"></i><span>在庫</span></button>
+  <button class="bnav-item" data-tab="out" onclick="switchTab('out',this)"><i class="ti ti-arrow-up-right" aria-hidden="true"></i><span>持出中</span></button>
+  <button class="bnav-item" data-tab="reserve" onclick="switchTab('reserve',this)"><i class="ti ti-calendar-time" aria-hidden="true"></i><span>予約</span></button>
+  <button class="bnav-item" data-tab="history" onclick="switchTab('history',this)"><i class="ti ti-history" aria-hidden="true"></i><span>履歴</span></button>
+  <button class="bnav-item" data-tab="dashboard" onclick="switchTab('dashboard',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>分析</span></button>
+</nav>
 
 </body>
 </html>
