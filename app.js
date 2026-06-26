@@ -214,9 +214,18 @@ function renderCats() {
   const cats = [...new Set(inv.map(i => i.cat))];
   const counts = {};
   cats.forEach(c => counts[c] = inv.filter(i => i.cat === c).length);
-  sidebar.innerHTML =
+  // モバイル用ドロップダウン + デスクトップ用サイドバー（CSSで切替）
+  const selectHTML =
+    `<select class="cat-select" onchange="selectCat(this.value)">` +
+    `<option value=""${currentCat===''?' selected':''}>すべてのカテゴリ (${inv.length})</option>` +
+    cats.map(c => `<option value="${escHtml(c)}"${currentCat===c?' selected':''}>${escHtml(c)} (${counts[c]})</option>`).join('') +
+    `</select>`;
+  const listHTML =
+    `<div class="cat-sidebar-list">` +
     `<div class="cat-sidebar-item${currentCat===''?' on':''}" onclick="selectCat('')">すべて <span class="cat-sidebar-count">${inv.length}</span></div>` +
-    cats.map(c => `<div class="cat-sidebar-item${currentCat===c?' on':''}" onclick="selectCat('${c}')">${c} <span class="cat-sidebar-count">${counts[c]}</span></div>`).join('');
+    cats.map(c => `<div class="cat-sidebar-item${currentCat===c?' on':''}" onclick="selectCat('${escHtml(c)}')">${escHtml(c)} <span class="cat-sidebar-count">${counts[c]}</span></div>`).join('') +
+    `</div>`;
+  sidebar.innerHTML = selectHTML + listHTML;
 }
 
 function selectCat(cat) {

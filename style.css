@@ -283,6 +283,9 @@ tr:hover td { background: var(--bg3); }
   border-radius: 999px; color: var(--text3); flex-shrink: 0; font-weight: 500;
 }
 .cat-sidebar-item.on .cat-sidebar-count { background: rgba(37,99,235,0.18); color: var(--primary); }
+/* デスクトップではドロップダウンを隠してリスト表示 */
+.cat-sidebar .cat-select { display: none; }
+.cat-sidebar .cat-sidebar-list { display: block; }
 
 .card-section-label {
   font-size: 12px; font-weight: 600; color: var(--text2);
@@ -559,14 +562,30 @@ tr:hover td { background: var(--bg3); }
   .legend { margin-bottom: 10px; gap: 4px; }
 
   .inv-layout { grid-template-columns: 1fr; }
-  .cat-sidebar { display: flex; flex-wrap: wrap; gap: 4px; position: static; padding: 8px; max-height: none; border-radius: var(--radius); }
-  .cat-sidebar-item { padding: 6px 10px; font-size: 12px; }
-  .card-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .item-card { padding: 12px 12px; gap: 10px; border-radius: var(--radius); }
-  .item-card-icon { width: 32px; height: 32px; border-radius: 8px; }
-  .item-card-icon i { font-size: 16px; }
-  .item-card-count { font-size: 20px; }
-  .item-card-name { font-size: 12px; }
+  /* モバイルではサイドバーリスト隠してドロップダウン表示 */
+  .cat-sidebar { position: static; padding: 0; max-height: none; border: none; background: none; box-shadow: none; }
+  .cat-sidebar .cat-sidebar-list { display: none; }
+  .cat-sidebar .cat-select {
+    display: block; width: 100%;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    padding: 12px 14px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2); color: var(--text);
+    box-shadow: var(--shadow-sm);
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 38px;
+  }
+  .card-grid { grid-template-columns: 1fr; gap: 8px; }
+  .item-card { padding: 12px 14px; gap: 12px; border-radius: var(--radius); }
+  .item-card-icon { width: 36px; height: 36px; border-radius: 8px; }
+  .item-card-icon i { font-size: 18px; }
+  .item-card-count { font-size: 22px; }
+  .item-card-name { font-size: 14px; }
+  .item-card-maker { font-size: 11px; }
 
   .modal { padding: 1.2rem; border-radius: var(--radius); }
 
