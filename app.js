@@ -1689,7 +1689,9 @@ function renderTopPage() {
     const dateLabel = d => {
       const dd = new Date(d);
       if (isNaN(dd)) return '';
-      const diff = Math.round((dd - today) / 86400000);
+      // 時刻部分を切り捨てて純粋な日付差で計算（搬入時刻に左右されない）
+      const ddDay = new Date(dd.getFullYear(), dd.getMonth(), dd.getDate());
+      const diff = Math.round((ddDay - today) / 86400000);
       const label = diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
       return `${dd.getMonth()+1}/${dd.getDate()}（${['日','月','火','水','木','金','土'][dd.getDay()]}）${label}`;
     };
