@@ -235,19 +235,8 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="modal-loan">
-  <div class="modal">
-    <h3><i class="ti ti-truck-delivery"></i> 東京へ貸出</h3>
-    <div class="fr"><label>機材</label><input id="loan-item" readonly></div>
-    <div class="fr"><label>貸出数（残数: <span id="loan-avail"></span>）</label><input type="number" id="loan-qty" min="1" value="1"></div>
-    <div class="fr"><label>担当者</label><input id="loan-staff" placeholder="担当者名"></div>
-    <div class="fr"><label>返却予定日（任意・例: 2026/7/1）</label><input id="loan-ret" placeholder="未定でも可"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('modal-loan')">キャンセル</button>
-      <button class="btn btn-primary" onclick="doLoan()">貸出確定</button>
-    </div>
-  </div>
-</div>
+<!-- 拠点間貸出モーダルは撤去 -->
+
 
 <div class="modal-backdrop" id="modal-note">
   <div class="modal">

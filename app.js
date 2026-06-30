@@ -149,8 +149,7 @@ function dateKeyOf(str) {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 let currentTab = 'all';
-let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1, loanIdx=-1;
-let loans = [];
+let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1;
 let rentalRanking = [];
 let conflicts = [];
 let pdDateKey = '';
@@ -308,39 +307,15 @@ function openItemDetail(idx) {
     (canOut?`<button class="btn btn-primary" onclick="closeModal('modal-detail');openCheckout(${idx})"><i class="ti ti-arrow-up-right"></i> 持ち出し</button>`:'') +
     (item.out>0?`<button class="btn" onclick="closeModal('modal-detail');openReturn(${idx})"><i class="ti ti-arrow-down-left"></i> 返却</button>`:'') +
     (av>0?`<button class="btn" onclick="closeModal('modal-detail');openSpecial(${idx})"><i class="ti ti-tool"></i> 特殊</button>`:'') +
-    (canOut?`<button class="btn" onclick="closeModal('modal-detail');openLoan(${idx})"><i class="ti ti-truck-delivery"></i> 東京へ貸出</button>`:'') +
     `<button class="btn" onclick="closeModal('modal-detail');openNoteModal(${idx})"><i class="ti ti-pencil"></i> 備考</button>` +
     `<button class="btn act d" onclick="closeModal('modal-detail');deleteItem(${idx})"><i class="ti ti-trash"></i></button>`;
   openModal('modal-detail');
 }
 
-function renderLoansSection() {
-  if (!loans || !loans.length) return '';
-  const rows = loans.map(l => `
-    <div class="proj-item-row">
-      <span class="proj-item-name">${escHtml(l.model)} <span style="color:var(--text2);font-size:11px">→ ${escHtml(l.dest||'東京')}${l.dateReturn?' / 返却 '+escHtml(l.dateReturn):''}</span></span>
-      <span class="proj-item-qty">×${l.qty}</span>
-      <button class="act" style="padding:3px 8px;font-size:11px" onclick="loanReturn('${l.loanId}')"><i class="ti ti-arrow-down-left"></i> 返却</button>
-    </div>`).join('');
-  return `
-    <div class="proj-group">
-      <div class="proj-group-head" onclick="toggleGroup(this)">
-        <div class="proj-group-left">
-          <i class="ti ti-chevron-down proj-chevron"></i>
-          <i class="ti ti-truck-delivery" style="color:var(--info-text)"></i>
-          <span class="proj-group-name">拠点間貸出中</span>
-        </div>
-        <div class="proj-group-right"><span class="proj-count">${loans.length}件</span></div>
-      </div>
-      <div class="proj-group-body">${rows}</div>
-    </div>`;
-}
-
 function renderOut() {
   const container = document.getElementById('out-container');
-  const loanHtml = renderLoansSection();
   if (!outItems.length) {
-    container.innerHTML = loanHtml || `<div class="empty">持ち出し中の機材はありません</div>`;
+    container.innerHTML = `<div class="empty">持ち出し中の機材はありません</div>`;
     return;
   }
   const groups = {};
@@ -351,7 +326,7 @@ function renderOut() {
     if (!groups[key]) groups[key] = {items:[], project:proj, dateKey:dk, staff:o.staff, returnDate:o.returnDate, dateOut:o.dateOut};
     groups[key].items.push({...o, outIdx:i});
   });
-  container.innerHTML = loanHtml + Object.values(groups).map(g => {
+  container.innerHTML = Object.values(groups).map(g => {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
@@ -709,54 +684,7 @@ function doCheckout() {
   }
 }
 
-// ===== 拠点間 貸出 =====
-function openLoan(idx) {
-  loanIdx = idx; const item = inv[idx];
-  document.getElementById('loan-item').value = `${item.maker} ${item.model}`;
-  document.getElementById('loan-avail').textContent = avail(item);
-  document.getElementById('loan-qty').value = 1;
-  document.getElementById('loan-qty').max = avail(item);
-  document.getElementById('loan-staff').value = '';
-  document.getElementById('loan-ret').value = '';
-  openModal('modal-loan');
-}
-function doLoan() {
-  const item = inv[loanIdx], qty = parseInt(document.getElementById('loan-qty').value)||0;
-  const staff = document.getElementById('loan-staff').value;
-  const ret = document.getElementById('loan-ret').value;
-  if (qty<1 || qty>avail(item)) { alert('数量が無効です'); return; }
-  if (!GAS_API_URL || GAS_API_URL==='ここにGASのURLを貼り付け') { alert('GAS未設定'); return; }
-  const cbName = 'loanCb_' + Date.now();
-  const params = new URLSearchParams({
-    action:'loan', model:item.maker+' '+item.model, qty:qty,
-    staff:staff||'', dateReturn:ret||'', dest:'東京', callback:cbName,
-  });
-  window[cbName] = function(json) {
-    delete window[cbName];
-    document.getElementById('jsonp_'+cbName)?.remove();
-    if (json.status !== 'ok') { alert('⚠️ ' + (json.message||'貸出失敗')); return; }
-    closeModal('modal-loan');
-    reloadData();
-  };
-  const script = document.createElement('script');
-  script.id = 'jsonp_'+cbName;
-  script.src = GAS_API_URL + '?' + params.toString();
-  document.body.appendChild(script);
-}
-function loanReturn(loanId) {
-  if (!confirm('この貸出を返却しますか？（大阪の在庫が戻り、東京の借用中からも消えます）')) return;
-  const cbName = 'loanRetCb_' + Date.now();
-  window[cbName] = function(json) {
-    delete window[cbName];
-    document.getElementById('jsonp_'+cbName)?.remove();
-    if (json.status !== 'ok') { alert('⚠️ ' + (json.message||'返却失敗')); return; }
-    reloadData();
-  };
-  const script = document.createElement('script');
-  script.id = 'jsonp_'+cbName;
-  script.src = GAS_API_URL + '?action=loan_return&loanId=' + encodeURIComponent(loanId) + '&callback=' + cbName;
-  document.body.appendChild(script);
-}
+// 拠点間貸出のin-app機能は撤去（受注書の[貸出][東京]タグ方式に統一）
 
 function openReturn(idx) {
   retIdx=idx; const item=inv[idx];
@@ -1172,7 +1100,6 @@ function applyData(json) {
     if (currentTab === 'reserve') renderReservations();
   }
 
-  loans = json.loans || [];
   if (currentTab === 'out') renderOut();
 
   rentalRanking = json.rentalRanking || [];
