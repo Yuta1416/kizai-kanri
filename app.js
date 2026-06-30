@@ -1828,7 +1828,19 @@ function cancelReservation(project, dateKey, e) {
     window[cbName] = function(json) {
       delete window[cbName];
       document.getElementById('jsonp_'+cbName)?.remove();
-      fetchFromSpreadsheet();
+      const n = (json && typeof json.deleted === 'number') ? json.deleted : null;
+      if (n === 0) {
+        alert(`⚠️ 「${project}」がスプレッドシート上に見つからず、キャンセル処理は0件でした。\n（既に持ち出し中に移行している可能性があります）`);
+      } else if (n != null) {
+        // 軽量トースト（右下に2秒）
+        const t = document.createElement('div');
+        t.style.cssText = 'position:fixed;right:16px;bottom:90px;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:200';
+        t.textContent = `✓ ${n}件キャンセルしました`;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2200);
+      }
+      // GAS の deleteRow が反映するまで300ms待ってから再取得（ラグ対策）
+      setTimeout(() => fetchFromSpreadsheet(), 300);
     };
     const script = document.createElement('script');
     script.id = 'jsonp_' + cbName;
