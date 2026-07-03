@@ -472,7 +472,10 @@ tr:hover td { background: var(--bg3); }
   margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-weight: 500;
 }
-.cal-event.ret { background: var(--success-bg); color: var(--success-text); }
+.cal-event.veh-caravan { background: #dbeafe; color: #1e40af; }
+.cal-event.veh-truck   { background: #fef3c7; color: #92400e; }
+.cal-event.veh-rental  { background: #dcfce7; color: #166534; }
+.cal-event.veh-other   { background: var(--bg3); color: var(--text2); }
 .cal-legend { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
 .cal-legend .cal-event { font-size: 11px; padding: 3px 8px; }
 

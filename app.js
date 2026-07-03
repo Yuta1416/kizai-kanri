@@ -172,6 +172,15 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// 車種→カレンダー色クラス
+function vehicleClass(v) {
+  const s = String(v || '');
+  if (/キャラバン|caravan/i.test(s)) return 'veh-caravan';
+  if (/トラック|truck/i.test(s)) return 'veh-truck';
+  if (/レンタカー|レンタル|rental/i.test(s)) return 'veh-rental';
+  return 'veh-other';
+}
+
 // 現場名に [貸出] [東京] が入っていたら貸出バッジを返す
 function loanBadge(projectName) {
   return /\[(貸出|東京|LOAN|loan)\]/i.test(String(projectName||''))
@@ -924,6 +933,48 @@ function showProjectDetail(project, dateKey, ev) {
 
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// エラーフォルダ一覧を取得して表示
+function openErrorList() {
+  openModal('modal-error');
+  const body = document.getElementById('error-list-body');
+  body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">読み込み中...</div>';
+  const cb = 'cbErrList' + Date.now();
+  window[cb] = (json) => {
+    delete window[cb]; s.remove();
+    if (json.status !== 'ok') { body.innerHTML = '<div class="empty">取得に失敗しました：' + escHtml(json.message||'') + '</div>'; return; }
+    if (!json.files.length) { body.innerHTML = '<div class="empty">エラーフォルダにファイルはありません</div>'; return; }
+    body.innerHTML = json.files.map(f => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</div>
+          <div style="font-size:11px;color:var(--text2)">${escHtml(f.modified.slice(0,10))}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="reingestError('${f.name.replace(/'/g,"\\'")}',this)"><i class="ti ti-rotate"></i> 再投入</button>
+      </div>`).join('');
+  };
+  const s = document.createElement('script');
+  s.src = GAS_API_URL + '?action=error_list&callback=' + cb;
+  document.body.appendChild(s);
+}
+
+function reingestError(name, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '処理中...'; }
+  const cb = 'cbReingest' + Date.now();
+  window[cb] = (json) => {
+    delete window[cb]; s.remove();
+    if (json.status === 'ok') {
+      if (btn) { btn.textContent = '✓ 完了'; btn.classList.remove('btn-primary'); }
+      setTimeout(openErrorList, 800);
+    } else {
+      alert('再投入に失敗：' + (json.message||''));
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-rotate"></i> 再投入'; }
+    }
+  };
+  const s = document.createElement('script');
+  s.src = GAS_API_URL + '?action=error_reingest&name=' + encodeURIComponent(name) + '&callback=' + cb;
+  document.body.appendChild(s);
+}
 document.querySelectorAll('.modal-backdrop').forEach(b => {
   b.addEventListener('click', e => { if(e.target===b) b.classList.remove('open'); });
 });
@@ -1199,48 +1250,27 @@ function renderDashboard() {
 
   // 案件を日付マップに（持ち出し中＋履歴）
   const dateMap = {};
-  const addToMap = (dateStr, label, isRet) => {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d)) return;
-      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      if (!dateMap[key]) dateMap[key] = [];
-      const entry = isRet ? '返却: ' + label : label;
-      if (!dateMap[key].includes(entry)) dateMap[key].push(entry);
-    } catch(e) {}
+  const pushEntry = (key, proj, vehicle) => {
+    if (!dateMap[key]) dateMap[key] = [];
+    if (!dateMap[key].some(e => e.proj === proj)) dateMap[key].push({ proj, vehicle: vehicle || '' });
   };
   history.forEach(h => {
     if (!h.project) return;
-    addToMap(h.date, h.project, false);
+    try {
+      const d = new Date(h.date);
+      if (isNaN(d)) return;
+      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+      pushEntry(key, h.project, h.vehicle || '');
+    } catch(e) {}
   });
   outItems.forEach(o => {
     if (!o.dateOut && !o.date) return;
     try {
       const d = new Date(o.date || o.dateOut);
-      if (!isNaN(d)) {
-        const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-        if (!dateMap[key]) dateMap[key] = [];
-        const proj = o.project || '（案件名未入力）';
-        // 同じ案件名は1回だけ追加
-        if (!dateMap[key].includes(proj)) {
-          dateMap[key].push(proj);
-        }
-      }
+      if (isNaN(d)) return;
+      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+      pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '');
     } catch(e) {}
-    // 返却予定日も表示
-    if (o.returnDate) {
-      try {
-        const rd = new Date(o.returnDate);
-        if (!isNaN(rd)) {
-          const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
-          if (!dateMap[rkey]) dateMap[rkey] = [];
-          const retLabel = '返却: ' + (o.project || '未入力');
-          if (!dateMap[rkey].includes(retLabel)) {
-            dateMap[rkey].push(retLabel);
-          }
-        }
-      } catch(e) {}
-    }
   });
 
   // 在庫不足ランキング（shortageDataから）
@@ -1264,12 +1294,12 @@ function renderDashboard() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,5).map(function(e) {
-      const isRet = e.startsWith('返却');
-      const proj = isRet ? e.replace('返却: ','') : e;
-      const label = e.length > 8 ? e.slice(0,8)+'…' : e;
-      const _dk = isRet ? '' : (year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0'));
-      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
+    const eventDots = events.slice(0,5).map(function(ev) {
+      const proj = ev.proj;
+      const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
+      const vc = vehicleClass(ev.vehicle);
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
@@ -1540,33 +1570,23 @@ function renderTopPage() {
   const daysInMonth = new Date(year, month+1, 0).getDate();
 
   const dateMap = {};
-  const addToMap = (dateStr, label, isRet) => {
-    const d = parseDate(dateStr);
-    if (!d) return;
-    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+  const pushEntry = (key, proj, vehicle) => {
     if (!dateMap[key]) dateMap[key] = [];
-    const entry = isRet ? '返却: ' + label : label;
-    if (!dateMap[key].includes(entry)) dateMap[key].push(entry);
+    if (!dateMap[key].some(e => e.proj === proj)) dateMap[key].push({ proj, vehicle: vehicle || '' });
   };
   outItems.forEach(o => {
-    // 持ち出し日は搬入予定(dateOut)を優先（処理日時dateではなく）
     const d = parseDate(o.dateOut || o.date);
-    if (d) {
-      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      if (!dateMap[key]) dateMap[key] = [];
-      const proj = o.project || '（案件名未入力）';
-      if (!dateMap[key].includes(proj)) dateMap[key].push(proj);
-    }
-    const rd = parseDate(o.returnDate);
-    if (rd) {
-      const rkey = rd.getFullYear() + '-' + (rd.getMonth()+1) + '-' + rd.getDate();
-      if (!dateMap[rkey]) dateMap[rkey] = [];
-      const retLabel = '返却: ' + (o.project || '未入力');
-      if (!dateMap[rkey].includes(retLabel)) dateMap[rkey].push(retLabel);
-    }
+    if (!d) return;
+    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '');
   });
-  // 予約も持ち出し日にマップ
-  (reservations || []).forEach(r => { if (r.project) addToMap(r.dateOut, r.project, false); });
+  (reservations || []).forEach(r => {
+    if (!r.project) return;
+    const d = parseDate(r.dateOut);
+    if (!d) return;
+    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    pushEntry(key, r.project, r.vehicle || '');
+  });
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const dayNames = ['日','月','火','水','木','金','土'];
@@ -1577,12 +1597,12 @@ function renderTopPage() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,5).map(function(e) {
-      const isRet = e.startsWith('返却');
-      const proj = isRet ? e.replace('返却: ','') : e;
-      const label = e.length > 8 ? e.slice(0,8)+'…' : e;
-      const _dk = isRet ? '' : (year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0'));
-      return '<div class="cal-event' + (isRet?' ret':'') + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
+    const eventDots = events.slice(0,5).map(function(ev) {
+      const proj = ev.proj;
+      const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
+      const vc = vehicleClass(ev.vehicle);
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
   }
@@ -1602,8 +1622,10 @@ function renderTopPage() {
       </div>
       <div class="cal-grid">${calCells}</div>
       <div class="cal-legend">
-        <span class="cal-event">持ち出し</span>
-        <span class="cal-event ret">返却予定</span>
+        <span class="cal-event veh-caravan">キャラバン</span>
+        <span class="cal-event veh-truck">トラック</span>
+        <span class="cal-event veh-rental">レンタカー</span>
+        <span class="cal-event veh-other">その他</span>
       </div>
     </div>
   `;

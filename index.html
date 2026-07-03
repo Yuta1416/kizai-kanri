@@ -30,6 +30,7 @@
     <div class="topbar-right">
       <button class="btn" onclick="reloadData()" id="reload-btn"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
       <button class="btn" onclick="downloadPickupList()" id="pickup-btn"><i class="ti ti-file-download" aria-hidden="true"></i> 持ち出しリスト</button>
+      <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
       <button class="btn" onclick="document.getElementById('xlsxIn').click()"><i class="ti ti-upload" aria-hidden="true"></i> Excel読み込み</button>
       <button class="btn" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i> CSV出力</button>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
@@ -282,6 +283,22 @@
   <button class="bnav-item" data-tab="history" onclick="switchTab('history',this)"><i class="ti ti-history" aria-hidden="true"></i><span>履歴</span></button>
   <button class="bnav-item" data-tab="dashboard" onclick="switchTab('dashboard',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>分析</span></button>
 </nav>
+
+<div class="modal-backdrop" id="modal-error">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="ti ti-alert-triangle"></i> エラー再投入</h3>
+      <button class="modal-close" onclick="closeModal('modal-error')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">在庫不足などで処理できなかった受注書。在庫追加後に「再投入」で自動処理が再開されます。</div>
+      <div id="error-list-body">読み込み中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-error')">閉じる</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
