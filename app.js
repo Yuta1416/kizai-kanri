@@ -1300,9 +1300,14 @@ function renderDashboard() {
 
   // 案件を日付マップに（持ち出し中＋履歴）
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle) => {
+  const pushEntry = (key, proj, vehicle, category) => {
     if (!dateMap[key]) dateMap[key] = [];
-    if (!dateMap[key].some(e => e.proj === proj)) dateMap[key].push({ proj, vehicle: vehicle || '' });
+    let existing = dateMap[key].find(e => e.proj === proj);
+    if (!existing) {
+      existing = { proj, vehicle: vehicle || '', cats: new Set() };
+      dateMap[key].push(existing);
+    }
+    if (category) existing.cats.add(category);
   };
   history.forEach(h => {
     if (!h.project) return;
@@ -1310,7 +1315,7 @@ function renderDashboard() {
       const d = new Date(h.date);
       if (isNaN(d)) return;
       const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      pushEntry(key, h.project, h.vehicle || '');
+      pushEntry(key, h.project, h.vehicle || '', h.category || '');
     } catch(e) {}
   });
   outItems.forEach(o => {
@@ -1319,7 +1324,7 @@ function renderDashboard() {
       const d = new Date(o.date || o.dateOut);
       if (isNaN(d)) return;
       const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '');
+      pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
     } catch(e) {}
   });
 
@@ -1346,7 +1351,9 @@ function renderDashboard() {
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
     const eventDots = events.slice(0,5).map(function(ev) {
       const proj = ev.proj;
-      const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
+      const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
@@ -1621,22 +1628,27 @@ function renderTopPage() {
   const daysInMonth = new Date(year, month+1, 0).getDate();
 
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle) => {
+  const pushEntry = (key, proj, vehicle, category) => {
     if (!dateMap[key]) dateMap[key] = [];
-    if (!dateMap[key].some(e => e.proj === proj)) dateMap[key].push({ proj, vehicle: vehicle || '' });
+    let existing = dateMap[key].find(e => e.proj === proj);
+    if (!existing) {
+      existing = { proj, vehicle: vehicle || '', cats: new Set() };
+      dateMap[key].push(existing);
+    }
+    if (category) existing.cats.add(category);
   };
   outItems.forEach(o => {
     const d = parseDate(o.dateOut || o.date);
     if (!d) return;
     const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-    pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '');
+    pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
   (reservations || []).forEach(r => {
     if (!r.project) return;
     const d = parseDate(r.dateOut);
     if (!d) return;
     const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-    pushEntry(key, r.project, r.vehicle || '');
+    pushEntry(key, r.project, r.vehicle || '', r.category || '');
   });
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -1650,7 +1662,9 @@ function renderTopPage() {
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
     const eventDots = events.slice(0,5).map(function(ev) {
       const proj = ev.proj;
-      const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
+      const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
+      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
