@@ -172,13 +172,36 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// 車種→カレンダー色クラス
-function vehicleClass(v) {
+// 車種→カレンダー色クラス（複数車両対応）
+const VEHICLE_COLORS = {
+  caravan: { bg: '#dbeafe', fg: '#1e40af' },
+  truck:   { bg: '#fef3c7', fg: '#92400e' },
+  rental:  { bg: '#dcfce7', fg: '#166534' },
+  other:   { bg: '#e5e7eb', fg: '#4b5563' },
+};
+function vehicleKinds(v) {
   const s = String(v || '');
-  if (/キャラバン|caravan/i.test(s)) return 'veh-caravan';
-  if (/トラック|truck/i.test(s)) return 'veh-truck';
-  if (/レンタカー|レンタル|rental/i.test(s)) return 'veh-rental';
-  return 'veh-other';
+  const kinds = [];
+  if (/キャラバン|caravan/i.test(s)) kinds.push('caravan');
+  if (/トラック|truck/i.test(s)) kinds.push('truck');
+  if (/レンタカー|レンタル|rental/i.test(s)) kinds.push('rental');
+  return kinds.length ? kinds : ['other'];
+}
+function vehicleClass(v) {
+  const k = vehicleKinds(v)[0];
+  return 'veh-' + k;
+}
+// カレンダーチップHTML生成（複数=2色以上のグラデーション、1つ=単色）
+function vehicleChipStyle(v) {
+  const kinds = vehicleKinds(v);
+  if (kinds.length === 1) return '';
+  const n = kinds.length;
+  const stops = kinds.map((k, i) => {
+    const from = Math.round(i * 100 / n);
+    const to   = Math.round((i + 1) * 100 / n);
+    return `${VEHICLE_COLORS[k].bg} ${from}% ${to}%`;
+  }).join(', ');
+  return `background:linear-gradient(90deg, ${stops});color:${VEHICLE_COLORS[kinds[0]].fg};`;
 }
 
 // 現場名に [貸出] [東京] が入っていたら貸出バッジを返す
@@ -1326,7 +1349,8 @@ function renderDashboard() {
       const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
+      const vs = vehicleChipStyle(ev.vehicle);
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
@@ -1629,7 +1653,8 @@ function renderTopPage() {
       const label = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer">' + label + '</div>';
+      const vs = vehicleChipStyle(ev.vehicle);
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
   }
@@ -1653,6 +1678,7 @@ function renderTopPage() {
         <span class="cal-event veh-truck">トラック</span>
         <span class="cal-event veh-rental">レンタカー</span>
         <span class="cal-event veh-other">その他</span>
+        <span class="cal-event" style="background:linear-gradient(90deg,#dbeafe 0% 50%,#fef3c7 50% 100%);color:#1e40af">複数車両</span>
       </div>
     </div>
   `;
