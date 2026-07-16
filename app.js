@@ -981,33 +981,6 @@ function openErrorList() {
   document.body.appendChild(s);
 }
 
-// テンプレ在庫更新：GAS→Dropboxテンプレを最新在庫で更新し、更新版をDL
-function updateTemplateStock() {
-  const btn = document.getElementById('tmpl-btn');
-  if (!confirm('テンプレート（荷だし表.xlsx）の在庫列を最新のマスター総数で更新します。よろしいですか？')) return;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 更新中...'; }
-  const cb = 'cbTmpl' + Date.now();
-  window[cb] = (json) => {
-    delete window[cb]; s.remove();
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-refresh-dot"></i> テンプレ在庫更新'; }
-    if (json.status !== 'ok') { alert('更新失敗：' + (json.message || '')); return; }
-    // 更新版を自動ダウンロード
-    const bin = atob(json.data);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = json.filename || '荷だし表.xlsx';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    alert(`✓ ${json.filled}件の在庫を最新化しました。Dropboxのテンプレも更新済み。`);
-  };
-  const s = document.createElement('script');
-  s.src = GAS_API_URL + '?action=update_template_stock&callback=' + cb;
-  document.body.appendChild(s);
-}
-
 function reingestError(name, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '処理中...'; }
   const cb = 'cbReingest' + Date.now();
