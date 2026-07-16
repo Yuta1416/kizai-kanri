@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kizai-cache-v12';
+const CACHE_NAME = 'kizai-cache-v13';
 
 // PWA用にアイコン等だけキャッシュ（アプリ本体は一切キャッシュしない＝常に最新）
 const CORE_ASSETS = ['/manifest.json', '/icon-192.png', '/icon-512.png'];

@@ -1409,13 +1409,6 @@ function renderDashboard() {
   container.innerHTML = conflictCard + `
     <div class="dash-card">
       <div class="dash-card-head">
-        <i class="ti ti-chart-bar" aria-hidden="true"></i>
-        <span>在庫不足 TOP${top10.length}</span>
-      </div>
-      <div class="rep-list">${reportRows}</div>
-    </div>
-    <div class="dash-card" style="margin-top:14px">
-      <div class="dash-card-head">
         <i class="ti ti-building-store" aria-hidden="true"></i>
         <span>レンタル品 TOP${rentTop.length}（購入検討の参考）</span>
       </div>
