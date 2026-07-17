@@ -603,3 +603,18 @@ tr:hover td { background: var(--bg3); }
   .cal-cell { min-height: 60px; padding: 3px; }
   .cal-event { font-size: 9px; padding: 1px 4px; }
 }
+
+/* 案件編集モーダル */
+.ep-field { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.ep-field label { min-width: 60px; font-size: 12px; color: var(--text2); }
+.ep-field input { flex: 1; padding: 5px 8px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); border-radius: 4px; font-size: 13px; }
+.ep-item-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; padding: 4px 6px; background: var(--bg3); border-radius: 6px; }
+.ep-item-row input { padding: 4px 6px !important; border: 1px solid var(--border); background: var(--bg2); color: var(--text); border-radius: 4px; font-size: 12px !important; width: auto !important; }
+.ep-item-row .ep-in-maker { width: 100px !important; flex: 0 0 auto; }
+.ep-item-row .ep-in-name { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
+.ep-item-row .ep-in-qty { width: 60px !important; flex: 0 0 auto; }
+.ep-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; min-width: 46px; text-align: center; font-weight: 500; }
+.ep-badge.ep-own { background: #dbeafe; color: #1e40af; }
+.ep-badge.ep-rental { background: #dcfce7; color: #166534; }
+.ep-badge.ep-free { background: #fef3c7; color: #92400e; }
+.ep-del { padding: 4px 6px !important; }

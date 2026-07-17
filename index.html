@@ -269,7 +269,35 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="downloadPickupList(pdProject, pdDateKey)"><i class="ti ti-file-download"></i> 持ち出しリストDL</button>
+      <button class="btn" onclick="openEditProject()"><i class="ti ti-edit"></i> 編集</button>
       <button class="btn btn-primary" onclick="closeModal('modal-project-detail')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 案件編集モーダル -->
+<div class="modal-backdrop" id="modal-edit-project">
+  <div class="modal" style="max-width:640px">
+    <h3><i class="ti ti-edit" aria-hidden="true"></i> 案件を編集 <span id="ep-title" style="color:var(--text2);font-size:13px;margin-left:8px"></span></h3>
+    <div class="fr" style="max-height:60vh;overflow-y:auto">
+      <div class="ep-field"><label>案件名</label><input id="ep-project" type="text"></div>
+      <div class="ep-field"><label>担当者</label><input id="ep-staff" type="text"></div>
+      <div class="ep-field"><label>車両</label><input id="ep-vehicle" type="text" placeholder="例: キャラバン・トラック"></div>
+      <div class="ep-field"><label>搬入日</label><input id="ep-dateout" type="text" placeholder="2026/7/22"></div>
+      <div class="ep-field"><label>返却日</label><input id="ep-dateret" type="text" placeholder="2026/7/22"></div>
+      <div style="margin:12px 0 6px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center">
+        <span>機材</span>
+        <button class="btn" style="padding:3px 8px;font-size:11px" onclick="epAddItem('own')"><i class="ti ti-plus"></i> 自社</button>
+      </div>
+      <div id="ep-items"></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn" style="padding:3px 8px;font-size:11px" onclick="epAddItem('rental')"><i class="ti ti-building-store"></i> レンタル追加</button>
+        <button class="btn" style="padding:3px 8px;font-size:11px" onclick="epAddItem('free')"><i class="ti ti-note"></i> フリー追加</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-edit-project')">キャンセル</button>
+      <button class="btn btn-primary" id="ep-save-btn" onclick="saveEditProject()"><i class="ti ti-check"></i> 保存</button>
     </div>
   </div>
 </div>

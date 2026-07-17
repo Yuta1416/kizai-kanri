@@ -957,6 +957,85 @@ function showProjectDetail(project, dateKey, ev) {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+// ==================== 案件編集モーダル ====================
+let epItemsState = [];
+function openEditProject() {
+  if (!pdProject) return;
+  const projectItems = outItems.filter(o => (o.project||'（案件名未入力）') === pdProject && (!pdDateKey || dateKeyOf(o.dateOut||o.date) === pdDateKey));
+  const resItems = (reservations||[]).filter(r => r.project === pdProject && (!pdDateKey || dateKeyOf(r.dateOut) === pdDateKey));
+  const rows = projectItems.length ? projectItems.map(o => ({
+    kind: o.note === '[レンタル]' ? 'rental' : (o.note === '(在庫管理外)' ? 'free' : 'own'),
+    category: o.category||'', maker: o.maker||'', itemName: o.model||'', qty: o.qty||0, note: o.note||''
+  })) : resItems.map(r => ({
+    kind: r.note === '[レンタル]' ? 'rental' : (r.note === '(在庫管理外)' ? 'free' : 'own'),
+    category: r.category||'', maker: r.maker||'', itemName: r.itemName||'', qty: r.qty||0, note: r.note||''
+  }));
+  // 人員のみプレースホルダは編集画面から除外
+  epItemsState = rows.filter(r => !(r.category === '人員のみ' && r.itemName === '人員のみ'));
+  const src = projectItems[0] || resItems[0] || {};
+  document.getElementById('ep-title').textContent = '';
+  document.getElementById('ep-project').value = pdProject;
+  document.getElementById('ep-staff').value = src.staff || '';
+  document.getElementById('ep-vehicle').value = src.vehicle || '';
+  document.getElementById('ep-dateout').value = src.dateOut || src.date || '';
+  document.getElementById('ep-dateret').value = src.dateReturn || src.returnDate || '';
+  renderEpItems();
+  openModal('modal-edit-project');
+}
+function renderEpItems() {
+  const kindLabel = { own:'自社', rental:'レンタル', free:'フリー' };
+  const html = epItemsState.map((it, i) => {
+    const showMaker = it.kind !== 'free';
+    return `<div class="ep-item-row" data-i="${i}">
+      <span class="ep-badge ep-${it.kind}">${kindLabel[it.kind]||it.kind}</span>
+      ${showMaker ? `<input class="ep-in-maker" placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value">` : ''}
+      <input class="ep-in-name" placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value">
+      <input class="ep-in-qty" type="number" min="0" value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0">
+      <button class="btn ep-del" onclick="epDeleteItem(${i})"><i class="ti ti-trash"></i></button>
+    </div>`;
+  }).join('');
+  document.getElementById('ep-items').innerHTML = html || '<div style="color:var(--text2);font-size:12px;padding:8px 0">（機材なし＝人員のみ現場として登録されます）</div>';
+}
+function epAddItem(kind) {
+  epItemsState.push({ kind, category:'', maker:'', itemName:'', qty:1, note:'' });
+  renderEpItems();
+}
+function epDeleteItem(i) {
+  epItemsState.splice(i, 1);
+  renderEpItems();
+}
+function saveEditProject() {
+  const btn = document.getElementById('ep-save-btn');
+  const payload = {
+    origProject: pdProject,
+    origDateKey: pdDateKey || '',
+    meta: {
+      project:    document.getElementById('ep-project').value.trim(),
+      staff:      document.getElementById('ep-staff').value.trim(),
+      vehicle:    document.getElementById('ep-vehicle').value.trim(),
+      dateOut:    document.getElementById('ep-dateout').value.trim(),
+      dateReturn: document.getElementById('ep-dateret').value.trim(),
+    },
+    items: epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && (it.qty|0) > 0)
+  };
+  if (!payload.meta.project) { alert('案件名は必須です'); return; }
+  if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中...';
+  const cb = 'cbEdit' + Date.now();
+  window[cb] = (json) => {
+    delete window[cb]; s.remove();
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存';
+    if (json.status !== 'ok') { alert('反映失敗：' + (json.message||'')); return; }
+    closeModal('modal-edit-project');
+    closeModal('modal-project-detail');
+    alert('✓ 反映しました');
+    reloadData();
+  };
+  const s = document.createElement('script');
+  s.src = GAS_API_URL + '?action=edit_project&callback=' + cb + '&data=' + encodeURIComponent(JSON.stringify(payload));
+  document.body.appendChild(s);
+}
+
 // エラーフォルダ一覧を取得して表示
 function openErrorList() {
   openModal('modal-error');
