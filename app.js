@@ -1022,10 +1022,17 @@ function saveEditProject() {
   if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
   btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中...';
   const cb = 'cbEdit' + Date.now();
+  let finished = false;
+  const cleanup = () => {
+    delete window[cb];
+    try { s.remove(); } catch(_) {}
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> 保存';
+  };
   window[cb] = (json) => {
-    delete window[cb]; s.remove();
-    btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存';
-    if (json.status !== 'ok') { alert('反映失敗：' + (json.message||'')); return; }
+    if (finished) return;
+    finished = true; cleanup();
+    if (!json || json.status !== 'ok') { alert('反映失敗：' + ((json && json.message)||'')); return; }
     closeModal('modal-edit-project');
     closeModal('modal-project-detail');
     alert('✓ 反映しました');
@@ -1033,7 +1040,27 @@ function saveEditProject() {
   };
   const s = document.createElement('script');
   s.src = GAS_API_URL + '?action=edit_project&callback=' + cb + '&data=' + encodeURIComponent(JSON.stringify(payload));
+  s.onerror = () => {
+    if (finished) return;
+    finished = true; cleanup();
+    // 通信は失敗したが GAS 側は完了している可能性が高いので、リロードで最新状態を取得させる
+    if (confirm('通信エラー：反映済みかもしれません。最新状態を取得しますか？')) {
+      closeModal('modal-edit-project');
+      closeModal('modal-project-detail');
+      reloadData();
+    }
+  };
   document.body.appendChild(s);
+  // 30秒経ってもコールバックが来なければ強制リロード（GAS側は成功していることが多い）
+  setTimeout(() => {
+    if (finished) return;
+    finished = true; cleanup();
+    if (confirm('応答がありません（30秒経過）。GAS側は反映済みの可能性が高いです。最新状態を取得しますか？')) {
+      closeModal('modal-edit-project');
+      closeModal('modal-project-detail');
+      reloadData();
+    }
+  }, 30000);
 }
 
 // エラーフォルダ一覧を取得して表示
