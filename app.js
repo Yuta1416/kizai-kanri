@@ -1029,24 +1029,33 @@ function saveEditProject() {
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-check"></i> 保存';
   };
-  const finish = (fromCallback, json) => {
+  const finishOk = (json) => {
     if (finished) return;
     finished = true; cleanup();
-    if (fromCallback && json && json.status !== 'ok') {
-      alert('反映失敗：' + (json.message||''));
-      return;
-    }
+    if (!json || json.status !== 'ok') { alert('反映失敗：' + ((json && json.message)||'')); return; }
+    closeModal('modal-edit-project');
+    closeModal('modal-project-detail');
+    alert('✓ 反映しました');
+    reloadData();
+  };
+  const finishErr = (reason) => {
+    if (finished) return;
+    finished = true; cleanup();
+    alert('通信エラー：' + reason + '\nGAS 側は反映済みかもしれません。「OK」で最新状態を取得します。');
     closeModal('modal-edit-project');
     closeModal('modal-project-detail');
     reloadData();
   };
-  window[cb] = (json) => finish(true, json);
+  window[cb] = (json) => finishOk(json);
+  const dataStr = encodeURIComponent(JSON.stringify(payload));
+  const url = GAS_API_URL + '?action=edit_project&callback=' + cb + '&data=' + dataStr;
+  console.log('[edit_project] URL length:', url.length, 'items:', payload.items.length);
   const s = document.createElement('script');
-  s.src = GAS_API_URL + '?action=edit_project&callback=' + cb + '&data=' + encodeURIComponent(JSON.stringify(payload));
-  s.onerror = () => finish(false, null);
+  s.src = url;
+  s.onerror = () => finishErr('リクエストが失敗しました（URL長=' + url.length + '）');
   document.body.appendChild(s);
-  // 45秒待って応答がなければ黙って閉じてリロード（GAS処理は完了している想定）
-  setTimeout(() => finish(false, null), 45000);
+  // 60秒待って応答がなければタイムアウト扱い
+  setTimeout(() => finishErr('応答がありません（60秒）'), 60000);
 }
 
 // エラーフォルダ一覧を取得して表示
