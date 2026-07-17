@@ -1021,41 +1021,29 @@ function saveEditProject() {
   if (!payload.meta.project) { alert('案件名は必須です'); return; }
   if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
   btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中...';
-  const cb = 'cbEdit' + Date.now();
-  let finished = false;
-  const cleanup = () => {
-    delete window[cb];
-    try { s.remove(); } catch(_) {}
+  const body = JSON.stringify({ action: 'edit_project', data: JSON.stringify(payload) });
+  console.log('[edit_project] POST body size:', body.length, 'items:', payload.items.length);
+  // fetch POST (mode:no-cors)：レスポンスは opaque だが GAS 側は処理される
+  fetch(GAS_API_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: body
+  }).then(() => {
+    // GAS の処理時間（20-40秒）を待ってからリロード
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-check"></i> 保存';
+      closeModal('modal-edit-project');
+      closeModal('modal-project-detail');
+      alert('✓ 反映しました（LINE/Slack通知が届いていれば処理完了）');
+      reloadData();
+    }, 25000);
+  }).catch(err => {
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-check"></i> 保存';
-  };
-  const finishOk = (json) => {
-    if (finished) return;
-    finished = true; cleanup();
-    if (!json || json.status !== 'ok') { alert('反映失敗：' + ((json && json.message)||'')); return; }
-    closeModal('modal-edit-project');
-    closeModal('modal-project-detail');
-    alert('✓ 反映しました');
-    reloadData();
-  };
-  const finishErr = (reason) => {
-    if (finished) return;
-    finished = true; cleanup();
-    alert('通信エラー：' + reason + '\nGAS 側は反映済みかもしれません。「OK」で最新状態を取得します。');
-    closeModal('modal-edit-project');
-    closeModal('modal-project-detail');
-    reloadData();
-  };
-  window[cb] = (json) => finishOk(json);
-  const dataStr = encodeURIComponent(JSON.stringify(payload));
-  const url = GAS_API_URL + '?action=edit_project&callback=' + cb + '&data=' + dataStr;
-  console.log('[edit_project] URL length:', url.length, 'items:', payload.items.length);
-  const s = document.createElement('script');
-  s.src = url;
-  s.onerror = () => finishErr('リクエストが失敗しました（URL長=' + url.length + '）');
-  document.body.appendChild(s);
-  // 60秒待って応答がなければタイムアウト扱い
-  setTimeout(() => finishErr('応答がありません（60秒）'), 60000);
+    alert('通信エラー：' + err.message);
+  });
 }
 
 // エラーフォルダ一覧を取得して表示
