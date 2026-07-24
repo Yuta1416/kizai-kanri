@@ -461,15 +461,20 @@ tr:hover td { background: var(--bg3); }
   overflow: hidden; box-sizing: border-box;
 }
 .cal-cell.empty { background: none; }
-.cal-cell.today .cal-day {
+.cal-cell.has-event { background: var(--bg3); }
+.cal-cell.has-event:hover { background: var(--bg4); }
+/* 日付ラベル：常に同じ高さ(22px)を維持してチップ位置がズレないように */
+.cal-day {
+  font-size: 11px; font-weight: 500; color: var(--text);
+  display: block; margin-bottom: 4px; height: 22px; line-height: 22px;
+}
+.cal-day-num { display: inline-block; min-width: 22px; text-align: left; }
+.cal-cell.today .cal-day-num {
   background: var(--primary); color: #fff;
   border-radius: 50%; width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 600;
+  font-weight: 600; text-align: center;
 }
-.cal-cell.has-event { background: var(--bg3); }
-.cal-cell.has-event:hover { background: var(--bg4); }
-.cal-day { font-size: 11px; font-weight: 500; color: var(--text); display: block; margin-bottom: 4px; height: 22px; }
 .cal-event {
   display: block; font-size: 10px; padding: 2px 6px;
   border-radius: 4px; background: var(--info-bg); color: var(--info-text);

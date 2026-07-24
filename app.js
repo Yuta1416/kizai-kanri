@@ -1442,7 +1442,7 @@ function renderDashboard() {
     }).join('');
     const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
-      <span class="cal-day">${d}</span>
+      <span class="cal-day"><span class="cal-day-num">${d}</span></span>
       ${eventDots}${overflow}
     </div>`;
   }
@@ -1768,7 +1768,7 @@ function renderTopPage() {
       return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}${overflow}</div>`;
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span>${eventDots}${overflow}</div>`;
   }
 
   calContainer.innerHTML = `
