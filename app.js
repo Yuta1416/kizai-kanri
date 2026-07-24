@@ -1801,48 +1801,75 @@ function renderTopPage() {
     const today = new Date(); today.setHours(0,0,0,0);
     const weekEnd = new Date(today); weekEnd.setDate(weekEnd.getDate() + 7);
     const dayNames = ['日','月','火','水','木','金','土'];
-    const dateLabel = d => {
-      const dd = new Date(d);
-      if (isNaN(dd)) return '';
-      const ddDay = new Date(dd.getFullYear(), dd.getMonth(), dd.getDate());
-      const diff = Math.round((ddDay - today) / 86400000);
-      const label = diff < 0 ? '進行中' : diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
-      return `${dd.getMonth()+1}/${dd.getDate()}（${dayNames[dd.getDay()]}）${label}`;
-    };
+    const dayOnly = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = (a, b) => Math.round((dayOnly(a) - dayOnly(b)) / 86400000);
+    const fmtMd = d => `${d.getMonth()+1}/${d.getDate()}`;
+    const fmtMdWd = d => `${d.getMonth()+1}/${d.getDate()}（${dayNames[d.getDay()]}）`;
 
-    // 案件ごとに集約（同名+同一搬入日で1エントリ）
+    // 案件ごとに集約
     const projMap = {};
     const addProj = (project, dateOut, dateReturn, staff, vehicle, type) => {
       if (!project) return;
       const dOut = parseDate(dateOut);
       if (!dOut) return;
       const dRet = parseDate(dateReturn) || dOut;
-      // 本日から1週間の予定：開始日が範囲内 or 本日時点で進行中（開始<今日 && 終了>=今日）
       const startInRange = (dOut >= today && dOut <= weekEnd);
       const activeNow    = (dOut < today && dRet >= today);
       if (!startInRange && !activeNow) return;
       const key = project + '|' + dateKeyOf(dateOut);
       if (!projMap[key]) {
-        projMap[key] = { date: dOut, project, staff: staff || '', vehicle: vehicle || '', type, dateKey: dateKeyOf(dateOut) };
+        projMap[key] = { dOut, dRet, project, staff: staff || '', vehicle: vehicle || '', type, dateKey: dateKeyOf(dateOut) };
       }
     };
     (reservations || []).forEach(r => addProj(r.project, r.dateOut, r.dateReturn, r.staff, r.vehicle, 'reserve'));
     (outItems || []).forEach(o => addProj(o.project, o.dateOut, o.returnDate || o.dateReturn, o.staff, o.vehicle, 'out'));
 
-    const rows = Object.values(projMap).sort((a,b) => a.date - b.date);
+    const rows = Object.values(projMap).sort((a,b) => a.dOut - b.dOut);
     if (rows.length === 0) {
       upcomingEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">本日から1週間の予定はありません</div>';
     } else {
-      upcomingEl.innerHTML = rows.map(r => `
-        <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start;cursor:pointer" data-project="${escHtml(r.project)}" data-datekey="${r.dateKey||''}" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)">
-          <div style="background:${r.type==='reserve'?'var(--info-bg)':'var(--warn-bg)'};color:${r.type==='reserve'?'var(--info-text)':'var(--warn-text)'};border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${dateLabel(r.date)}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:var(--text);text-decoration:underline;text-underline-offset:2px">${escHtml(r.project)}</div>
-            ${r.staff ? `<div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(r.staff)}</div>` : ''}
-          </div>
-          <div style="color:var(--text2);font-size:16px;align-self:center"><i class="ti ti-chevron-right"></i></div>
-        </div>
-      `).join('');
+      upcomingEl.innerHTML = rows.map(r => {
+        const totalDays = diffDays(r.dRet, r.dOut) + 1;
+        const isMultiDay = totalDays > 1;
+        // 日付範囲
+        const dateRange = isMultiDay
+          ? `${fmtMdWd(r.dOut)}<span style="color:var(--text2);margin:0 4px">〜</span>${fmtMd(r.dRet)}（${dayNames[r.dRet.getDay()]}）`
+          : fmtMdWd(r.dOut);
+        // ステータスバッジ
+        const startDiff = diffDays(r.dOut, today);
+        let statusText, statusBg, statusColor;
+        if (startDiff < 0) {
+          // 進行中：何日目/何日中
+          const dayIdx = diffDays(today, r.dOut) + 1;
+          statusText = `進行中 ${dayIdx}/${totalDays}日目`;
+          statusBg = 'var(--warn-bg)'; statusColor = 'var(--warn-text)';
+        } else if (startDiff === 0) {
+          statusText = '今日'; statusBg = 'var(--primary)'; statusColor = '#fff';
+        } else if (startDiff === 1) {
+          statusText = '明日'; statusBg = 'var(--info-bg)'; statusColor = 'var(--info-text)';
+        } else {
+          statusText = `${startDiff}日後`; statusBg = 'var(--bg3)'; statusColor = 'var(--text2)';
+        }
+        // 車両カラーチップ
+        const vc = vehicleClass(r.vehicle);
+        const vs = vehicleChipStyle(r.vehicle);
+        const vehBadge = r.vehicle
+          ? `<span class="cal-event ${vc}" style="font-size:10px;padding:1px 6px;height:auto;line-height:1.2;${vs}">${escHtml(r.vehicle)}</span>`
+          : '';
+        return `
+          <div class="upc-row" data-project="${escHtml(r.project)}" data-datekey="${r.dateKey||''}" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)">
+            <div class="upc-left">
+              <div class="upc-date">${dateRange}</div>
+              <div class="upc-project">${escHtml(r.project)}</div>
+              <div class="upc-meta">
+                <span class="upc-status" style="background:${statusBg};color:${statusColor}">${statusText}</span>
+                ${r.staff ? `<span class="upc-staff"><i class="ti ti-user"></i> ${escHtml(r.staff)}</span>` : ''}
+                ${vehBadge}
+              </div>
+            </div>
+            <i class="ti ti-chevron-right upc-chev"></i>
+          </div>`;
+      }).join('');
     }
   }
 }

@@ -490,6 +490,22 @@ tr:hover td { background: var(--bg3); }
 .cal-event.cal-span-mid   { border-radius: 0; margin-left: -6px; margin-right: -6px; padding-left: 8px; padding-right: 8px; }
 .cal-event.cal-span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -6px; padding-left: 8px; }
 .cal-more { font-size: 9px; color: var(--text2); margin-top: 2px; padding-left: 4px; }
+/* 本日から1週間の予定 */
+.upc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 0.5px solid var(--border);
+  cursor: pointer; transition: background 0.12s;
+}
+.upc-row:hover { background: var(--bg3); }
+.upc-row:last-child { border-bottom: none; }
+.upc-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.upc-date { font-size: 12px; color: var(--text2); font-weight: 500; }
+.upc-project { font-size: 14px; font-weight: 700; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.upc-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.upc-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.upc-staff { font-size: 11px; color: var(--text2); display: inline-flex; align-items: center; gap: 3px; }
+.upc-staff i { font-size: 12px; }
+.upc-chev { font-size: 16px; color: var(--text2); flex-shrink: 0; }
 .cal-legend { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
 .cal-legend .cal-event { font-size: 11px; padding: 3px 8px; height: auto; line-height: 1; }
 
