@@ -1431,7 +1431,8 @@ function renderDashboard() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const showLabel = (ev.span === 'start' || ev.span === 'single' || !ev.span);
+      // 複数日案件は先頭日と末尾日にラベル表示、中間だけ空白（帯感を保ちつつ視認性UP）
+      const showLabel = (ev.span !== 'mid');
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
       const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
@@ -1757,7 +1758,8 @@ function renderTopPage() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const showLabel = (ev.span === 'start' || ev.span === 'single' || !ev.span);
+      // 複数日案件は先頭日と末尾日にラベル表示、中間だけ空白（帯感を保ちつつ視認性UP）
+      const showLabel = (ev.span !== 'mid');
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
       const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
