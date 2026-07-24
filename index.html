@@ -31,10 +31,8 @@
       <button class="btn" onclick="reloadData()" id="reload-btn"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
       <button class="btn" onclick="downloadPickupList()" id="pickup-btn"><i class="ti ti-file-download" aria-hidden="true"></i> 持ち出しリスト</button>
       <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
-      <button class="btn" onclick="document.getElementById('xlsxIn').click()"><i class="ti ti-upload" aria-hidden="true"></i> Excel読み込み</button>
       <button class="btn" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i> CSV出力</button>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
-      <input type="file" id="xlsxIn" accept=".xlsx,.csv" style="display:none" onchange="handleFile(event)">
     </div>
   </header>
 
