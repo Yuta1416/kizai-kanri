@@ -1428,12 +1428,11 @@ function renderDashboard() {
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
       // 期間中の帯の見た目：先頭のみラベル、途中/末尾は空白バーで連続感を出す
-      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
-      const label = (ev.span === 'mid' || ev.span === 'end') ? '' : (isPersonOnly ? '👤 ' + rawLabel : rawLabel);
+      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '&nbsp;</div>';
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
@@ -1749,12 +1748,11 @@ function renderTopPage() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
-      const label = (ev.span === 'mid' || ev.span === 'end') ? '' : (isPersonOnly ? '👤 ' + rawLabel : rawLabel);
+      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '&nbsp;</div>';
+      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
   }
