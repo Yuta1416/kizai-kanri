@@ -1398,7 +1398,7 @@ function renderDashboard() {
   outItems.forEach(o => {
     const dOut = parseDate(o.dateOut || o.date);
     if (!dOut) return;
-    const dRet = parseDate(o.dateReturn) || dOut;
+    const dRet = parseDate(o.returnDate || o.dateReturn) || dOut;
     spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
   // 各日のイベントを開始日順にソート（複数日案件が上に来る／同じ高さで揃う）
@@ -1731,7 +1731,7 @@ function renderTopPage() {
   outItems.forEach(o => {
     const dOut = parseDate(o.dateOut || o.date);
     if (!dOut) return;
-    const dRet = parseDate(o.dateReturn) || dOut;
+    const dRet = parseDate(o.returnDate || o.dateReturn) || dOut;
     spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
   (reservations || []).forEach(r => {
