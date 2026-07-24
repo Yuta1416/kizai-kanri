@@ -479,7 +479,7 @@ tr:hover td { background: var(--bg3); }
 .cal-event.veh-caravan { background: #dbeafe; color: #1e40af; }
 .cal-event.veh-truck   { background: #fef3c7; color: #92400e; }
 .cal-event.veh-rental  { background: #dcfce7; color: #166534; }
-.cal-event.veh-other   { background: var(--bg3); color: var(--text2); }
+.cal-event.veh-other   { background: #e5e7eb; color: #374151; }
 /* 複数日案件を帯として連続表示：セル境界を跨いで色が繋がる */
 .cal-event.cal-span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -6px; padding-right: 8px; }
 .cal-event.cal-span-mid   { border-radius: 0; margin-left: -6px; margin-right: -6px; padding-left: 8px; padding-right: 8px; }
