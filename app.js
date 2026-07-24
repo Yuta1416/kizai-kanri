@@ -1795,48 +1795,43 @@ function renderTopPage() {
     </div>
   `;
 
-  // 今後1週間の予約を右カラムに表示
+  // 本日から1週間の予定を右カラムに表示（本日時点でアクティブ or 開始が本日〜7日後の案件）
   const upcomingEl = document.getElementById('upcoming-content');
   if (upcomingEl) {
     const today = new Date(); today.setHours(0,0,0,0);
-    const week = new Date(today); week.setDate(week.getDate() + 7);
+    const weekEnd = new Date(today); weekEnd.setDate(weekEnd.getDate() + 7);
+    const dayNames = ['日','月','火','水','木','金','土'];
     const dateLabel = d => {
       const dd = new Date(d);
       if (isNaN(dd)) return '';
-      // 時刻部分を切り捨てて純粋な日付差で計算（搬入時刻に左右されない）
       const ddDay = new Date(dd.getFullYear(), dd.getMonth(), dd.getDate());
       const diff = Math.round((ddDay - today) / 86400000);
-      const label = diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
-      return `${dd.getMonth()+1}/${dd.getDate()}（${['日','月','火','水','木','金','土'][dd.getDay()]}）${label}`;
+      const label = diff < 0 ? '進行中' : diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
+      return `${dd.getMonth()+1}/${dd.getDate()}（${dayNames[dd.getDay()]}）${label}`;
     };
 
-    // reservations（予約）＋ outItems（持ち出し中）の返却予定を合算
-    const items = [];
-    (reservations || []).forEach(r => {
-      const d = parseDate(r.dateOut);
-      if (d && d >= today && d <= week) {
-        items.push({ date: d, project: r.project || '（未入力）', staff: r.staff || '', items: r.itemName || '', type: 'reserve', dateKey: dateKeyOf(r.dateOut) });
+    // 案件ごとに集約（同名+同一搬入日で1エントリ）
+    const projMap = {};
+    const addProj = (project, dateOut, dateReturn, staff, vehicle, type) => {
+      if (!project) return;
+      const dOut = parseDate(dateOut);
+      if (!dOut) return;
+      const dRet = parseDate(dateReturn) || dOut;
+      // 本日から1週間の予定：開始日が範囲内 or 本日時点で進行中（開始<今日 && 終了>=今日）
+      const startInRange = (dOut >= today && dOut <= weekEnd);
+      const activeNow    = (dOut < today && dRet >= today);
+      if (!startInRange && !activeNow) return;
+      const key = project + '|' + dateKeyOf(dateOut);
+      if (!projMap[key]) {
+        projMap[key] = { date: dOut, project, staff: staff || '', vehicle: vehicle || '', type, dateKey: dateKeyOf(dateOut) };
       }
-    });
-    (outItems || []).forEach(o => {
-      const d = parseDate(o.returnDate || o.dateReturn || o.dateOut);
-      if (d && d >= today && d <= week) {
-        items.push({ date: d, project: o.project || '（未入力）', staff: o.staff || '', items: o.itemName || '', type: 'out', dateKey: dateKeyOf(o.dateOut) });
-      }
-    });
-    items.sort((a,b) => a.date - b.date);
+    };
+    (reservations || []).forEach(r => addProj(r.project, r.dateOut, r.dateReturn, r.staff, r.vehicle, 'reserve'));
+    (outItems || []).forEach(o => addProj(o.project, o.dateOut, o.returnDate || o.dateReturn, o.staff, o.vehicle, 'out'));
 
-    // 案件ごとにまとめる
-    const grouped = {};
-    items.forEach(item => {
-      const key = item.project + '|' + item.date.toDateString();
-      if (!grouped[key]) grouped[key] = { ...item, itemList: [] };
-      if (item.items) grouped[key].itemList.push(item.items);
-    });
-
-    const rows = Object.values(grouped);
+    const rows = Object.values(projMap).sort((a,b) => a.date - b.date);
     if (rows.length === 0) {
-      upcomingEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">今後1週間の予約はありません</div>';
+      upcomingEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">本日から1週間の予定はありません</div>';
     } else {
       upcomingEl.innerHTML = rows.map(r => `
         <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start;cursor:pointer" data-project="${escHtml(r.project)}" data-datekey="${r.dateKey||''}" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)">
