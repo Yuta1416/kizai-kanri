@@ -1362,32 +1362,43 @@ function renderDashboard() {
 
   // 案件を日付マップに（持ち出し中＋履歴）
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle, category) => {
+  const pushEntry = (key, proj, vehicle, category, span) => {
     if (!dateMap[key]) dateMap[key] = [];
     let existing = dateMap[key].find(e => e.proj === proj);
     if (!existing) {
-      existing = { proj, vehicle: vehicle || '', cats: new Set() };
+      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single' };
       dateMap[key].push(existing);
+    } else if (span) {
+      existing.span = span;
     }
     if (category) existing.cats.add(category);
   };
+  // 期間を日ごとに分割して pushEntry する（開始日=start, 終了日=end, 中間=mid）
+  const spanDays = (dOut, dRet, proj, vehicle, category) => {
+    const start = new Date(dOut.getFullYear(), dOut.getMonth(), dOut.getDate());
+    const end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
+    if (end < start) return spanDays(dOut, null, proj, vehicle, category);
+    let first = true;
+    for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate()+1)) {
+      const isLast = (cur.getTime() === end.getTime());
+      const span = (first && isLast) ? 'single' : (first ? 'start' : (isLast ? 'end' : 'mid'));
+      const key = cur.getFullYear() + '-' + (cur.getMonth()+1) + '-' + cur.getDate();
+      pushEntry(key, proj, vehicle, category, span);
+      first = false;
+    }
+  };
   history.forEach(h => {
     if (!h.project) return;
-    try {
-      const d = new Date(h.date);
-      if (isNaN(d)) return;
-      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      pushEntry(key, h.project, h.vehicle || '', h.category || '');
-    } catch(e) {}
+    const d = parseDate(h.date);
+    if (!d) return;
+    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    pushEntry(key, h.project, h.vehicle || '', h.category || '', 'single');
   });
   outItems.forEach(o => {
-    if (!o.dateOut && !o.date) return;
-    try {
-      const d = new Date(o.date || o.dateOut);
-      if (isNaN(d)) return;
-      const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-      pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
-    } catch(e) {}
+    const dOut = parseDate(o.dateOut || o.date);
+    if (!dOut) return;
+    const dRet = parseDate(o.dateReturn) || dOut;
+    spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
 
   // 在庫不足ランキング（shortageDataから）
@@ -1404,7 +1415,8 @@ function renderDashboard() {
   dayNames.forEach(d => {
     calCells += `<div class="cal-head">${d}</div>`;
   });
-  for (let i = 0; i < (firstDay === 0 ? 6 : firstDay-1); i++) {
+  // 日曜始まりカレンダー：firstDay(0=日..6=土)ぶんの空セルを詰める
+  for (let i = 0; i < firstDay; i++) {
     calCells += `<div class="cal-cell empty"></div>`;
   }
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1415,11 +1427,13 @@ function renderDashboard() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
+      // 期間中の帯の見た目：先頭のみラベル、途中/末尾は空白バーで連続感を出す
+      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
+      const label = (ev.span === 'mid' || ev.span === 'end') ? '' : (isPersonOnly ? '👤 ' + rawLabel : rawLabel);
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '&nbsp;</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
@@ -1683,34 +1697,50 @@ function renderTopPage() {
   const daysInMonth = new Date(year, month+1, 0).getDate();
 
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle, category) => {
+  const pushEntry = (key, proj, vehicle, category, span) => {
     if (!dateMap[key]) dateMap[key] = [];
     let existing = dateMap[key].find(e => e.proj === proj);
     if (!existing) {
-      existing = { proj, vehicle: vehicle || '', cats: new Set() };
+      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single' };
       dateMap[key].push(existing);
+    } else if (span) {
+      existing.span = span;
     }
     if (category) existing.cats.add(category);
   };
+  const spanDays = (dOut, dRet, proj, vehicle, category) => {
+    const start = new Date(dOut.getFullYear(), dOut.getMonth(), dOut.getDate());
+    const end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
+    if (end < start) return spanDays(dOut, null, proj, vehicle, category);
+    let first = true;
+    for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate()+1)) {
+      const isLast = (cur.getTime() === end.getTime());
+      const span = (first && isLast) ? 'single' : (first ? 'start' : (isLast ? 'end' : 'mid'));
+      const key = cur.getFullYear() + '-' + (cur.getMonth()+1) + '-' + cur.getDate();
+      pushEntry(key, proj, vehicle, category, span);
+      first = false;
+    }
+  };
   outItems.forEach(o => {
-    const d = parseDate(o.dateOut || o.date);
-    if (!d) return;
-    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-    pushEntry(key, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
+    const dOut = parseDate(o.dateOut || o.date);
+    if (!dOut) return;
+    const dRet = parseDate(o.dateReturn) || dOut;
+    spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
   (reservations || []).forEach(r => {
     if (!r.project) return;
-    const d = parseDate(r.dateOut);
-    if (!d) return;
-    const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-    pushEntry(key, r.project, r.vehicle || '', r.category || '');
+    const dOut = parseDate(r.dateOut);
+    if (!dOut) return;
+    const dRet = parseDate(r.dateReturn) || dOut;
+    spanDays(dOut, dRet, r.project, r.vehicle || '', r.category || '');
   });
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const dayNames = ['日','月','火','水','木','金','土'];
   let calCells = '';
   dayNames.forEach(d => { calCells += `<div class="cal-head">${d}</div>`; });
-  for (let i = 0; i < (firstDay === 0 ? 6 : firstDay-1); i++) calCells += `<div class="cal-cell empty"></div>`;
+  // 日曜始まりカレンダー：firstDay(0=日..6=土)ぶんの空セルを詰める
+  for (let i = 0; i < firstDay; i++) calCells += `<div class="cal-cell empty"></div>`;
   for (let d = 1; d <= daysInMonth; d++) {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
@@ -1719,11 +1749,12 @@ function renderTopPage() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
+      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
+      const label = (ev.span === 'mid' || ev.span === 'end') ? '' : (isPersonOnly ? '👤 ' + rawLabel : rawLabel);
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '&nbsp;</div>';
     }).join('');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
   }

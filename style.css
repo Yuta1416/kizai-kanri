@@ -476,6 +476,10 @@ tr:hover td { background: var(--bg3); }
 .cal-event.veh-truck   { background: #fef3c7; color: #92400e; }
 .cal-event.veh-rental  { background: #dcfce7; color: #166534; }
 .cal-event.veh-other   { background: var(--bg3); color: var(--text2); }
+/* 複数日にまたがる案件の連続感を出す（両端は角丸、途中は角なし） */
+.cal-event.cal-span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -4px; }
+.cal-event.cal-span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -4px; }
+.cal-event.cal-span-mid   { border-radius: 0; margin-left: -4px; margin-right: -4px; text-overflow: clip; }
 .cal-legend { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
 .cal-legend .cal-event { font-size: 11px; padding: 3px 8px; }
 
