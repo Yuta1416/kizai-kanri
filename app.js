@@ -1362,11 +1362,11 @@ function renderDashboard() {
 
   // 案件を日付マップに（持ち出し中＋履歴）
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle, category, span) => {
+  const pushEntry = (key, proj, vehicle, category, span, sortKey) => {
     if (!dateMap[key]) dateMap[key] = [];
     let existing = dateMap[key].find(e => e.proj === proj);
     if (!existing) {
-      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single' };
+      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single', sortKey: sortKey || 0 };
       dateMap[key].push(existing);
     } else if (span) {
       existing.span = span;
@@ -1378,12 +1378,13 @@ function renderDashboard() {
     const start = new Date(dOut.getFullYear(), dOut.getMonth(), dOut.getDate());
     const end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
     if (end < start) return spanDays(dOut, null, proj, vehicle, category);
+    const sortKey = start.getTime();  // 開始日でソートすると帯が同じ高さで並ぶ
     let first = true;
     for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate()+1)) {
       const isLast = (cur.getTime() === end.getTime());
       const span = (first && isLast) ? 'single' : (first ? 'start' : (isLast ? 'end' : 'mid'));
       const key = cur.getFullYear() + '-' + (cur.getMonth()+1) + '-' + cur.getDate();
-      pushEntry(key, proj, vehicle, category, span);
+      pushEntry(key, proj, vehicle, category, span, sortKey);
       first = false;
     }
   };
@@ -1392,7 +1393,7 @@ function renderDashboard() {
     const d = parseDate(h.date);
     if (!d) return;
     const key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-    pushEntry(key, h.project, h.vehicle || '', h.category || '', 'single');
+    pushEntry(key, h.project, h.vehicle || '', h.category || '', 'single', d.getTime());
   });
   outItems.forEach(o => {
     const dOut = parseDate(o.dateOut || o.date);
@@ -1400,6 +1401,8 @@ function renderDashboard() {
     const dRet = parseDate(o.dateReturn) || dOut;
     spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
+  // 各日のイベントを開始日順にソート（複数日案件が上に来る／同じ高さで揃う）
+  Object.values(dateMap).forEach(arr => arr.sort((a, b) => (a.sortKey||0) - (b.sortKey||0)));
 
   // 在庫不足ランキング（shortageDataから）
   const top10 = Object.entries(shortageData)
@@ -1423,20 +1426,23 @@ function renderDashboard() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,5).map(function(ev) {
+    const maxShow = 3;
+    const eventDots = events.slice(0, maxShow).map(function(ev) {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      // 期間中の帯の見た目：先頭のみラベル、途中/末尾は空白バーで連続感を出す
-      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
+      const showLabel = (ev.span === 'start' || ev.span === 'single' || !ev.span);
+      const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
+      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
+    const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
     calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
       <span class="cal-day">${d}</span>
-      ${eventDots}
+      ${eventDots}${overflow}
     </div>`;
   }
 
@@ -1696,11 +1702,11 @@ function renderTopPage() {
   const daysInMonth = new Date(year, month+1, 0).getDate();
 
   const dateMap = {};
-  const pushEntry = (key, proj, vehicle, category, span) => {
+  const pushEntry = (key, proj, vehicle, category, span, sortKey) => {
     if (!dateMap[key]) dateMap[key] = [];
     let existing = dateMap[key].find(e => e.proj === proj);
     if (!existing) {
-      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single' };
+      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single', sortKey: sortKey || 0 };
       dateMap[key].push(existing);
     } else if (span) {
       existing.span = span;
@@ -1711,12 +1717,13 @@ function renderTopPage() {
     const start = new Date(dOut.getFullYear(), dOut.getMonth(), dOut.getDate());
     const end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
     if (end < start) return spanDays(dOut, null, proj, vehicle, category);
+    const sortKey = start.getTime();
     let first = true;
     for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate()+1)) {
       const isLast = (cur.getTime() === end.getTime());
       const span = (first && isLast) ? 'single' : (first ? 'start' : (isLast ? 'end' : 'mid'));
       const key = cur.getFullYear() + '-' + (cur.getMonth()+1) + '-' + cur.getDate();
-      pushEntry(key, proj, vehicle, category, span);
+      pushEntry(key, proj, vehicle, category, span, sortKey);
       first = false;
     }
   };
@@ -1733,6 +1740,7 @@ function renderTopPage() {
     const dRet = parseDate(r.dateReturn) || dOut;
     spanDays(dOut, dRet, r.project, r.vehicle || '', r.category || '');
   });
+  Object.values(dateMap).forEach(arr => arr.sort((a, b) => (a.sortKey||0) - (b.sortKey||0)));
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const dayNames = ['日','月','火','水','木','金','土'];
@@ -1744,17 +1752,21 @@ function renderTopPage() {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const eventDots = events.slice(0,5).map(function(ev) {
+    const maxShow = 3;
+    const eventDots = events.slice(0, maxShow).map(function(ev) {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      const label = isPersonOnly ? '👤 ' + rawLabel : rawLabel;
+      const showLabel = (ev.span === 'start' || ev.span === 'single' || !ev.span);
+      const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
+      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}</div>`;
+    const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day">${d}</span>${eventDots}${overflow}</div>`;
   }
 
   calContainer.innerHTML = `
