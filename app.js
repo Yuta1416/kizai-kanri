@@ -1881,7 +1881,14 @@ function renderReservations() {
     if (!groups[key]) groups[key] = { items: [], project: proj, dateKey: dk, staff: r.staff, dateOut: r.dateOut, dateReturn: r.dateReturn, vehicle: r.vehicle || '' };
     groups[key].items.push(r);
   });
-  container.innerHTML = Object.values(groups).map(g => {
+  // 搬入日が早い順に並べる
+  const sortedGroups = Object.values(groups).sort((a, b) => {
+    const da = parseDate(a.dateOut); const db = parseDate(b.dateOut);
+    const ta = da ? da.getTime() : Infinity;
+    const tb = db ? db.getTime() : Infinity;
+    return ta - tb;
+  });
+  container.innerHTML = sortedGroups.map(g => {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
@@ -1908,7 +1915,7 @@ function renderReservations() {
       <div class="proj-group">
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
-            <i class="ti ti-chevron-down proj-chevron"></i>
+            <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
             <span class="proj-group-name">${escHtml(project)}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${escHtml(g.staff||'担当未入力')}</span>
             <span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(g.dateOut)}</span>
@@ -1924,7 +1931,7 @@ function renderReservations() {
             </button>
           </div>
         </div>
-        <div class="proj-group-body">${rows}</div>
+        <div class="proj-group-body" style="display:none">${rows}</div>
       </div>`;
   }).join('');
 }
