@@ -373,7 +373,7 @@ function renderOut() {
       return `
       <div class="proj-item-row">
         <span class="proj-item-name">${escHtml(String(o.model||''))}${mkLabel}</span>
-        <span class="proj-item-qty">×${o.qty}</span>
+        <span class="proj-item-qty">${(o.qty|0) > 0 ? '×'+(o.qty|0) : ''}</span>
         <button class="act" style="padding:3px 8px;font-size:11px" onclick="openReturnFromOut(${o.outIdx})">
           <i class="ti ti-arrow-down-left"></i> 返却
         </button>
@@ -515,7 +515,7 @@ function _renderHistoryInner(container) {
           <div class="proj-item-row">
             <span style="font-size:11px;color:var(--text2);min-width:120px">${h.date}</span>
             <span class="proj-item-name">${escHtml(String(h.model||''))}${makerLabel}</span>
-            <span class="proj-item-qty">×${h.qty}</span>
+            <span class="proj-item-qty">${(h.qty|0) > 0 ? '×'+(h.qty|0) : ''}</span>
             <span class="badge ${cls}" style="font-size:10px">${actionLabel}</span>
             <span style="font-size:11px;color:var(--text2)">${escHtml(h.note||'')}</span>
           </div>`;
@@ -1016,7 +1016,7 @@ function saveEditProject() {
       dateOut:    document.getElementById('ep-dateout').value.trim(),
       dateReturn: document.getElementById('ep-dateret').value.trim(),
     },
-    items: epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && (it.qty|0) > 0)
+    items: epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && ((it.qty|0) > 0 || it.kind === 'rental' || it.kind === 'free'))
   };
   if (!payload.meta.project) { alert('案件名は必須です'); return; }
   if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
@@ -1921,7 +1921,7 @@ function renderReservations() {
       return `
       <div class="proj-item-row">
         <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}${mkLabel}</span>
-        <span class="proj-item-qty">×${r.qty}</span>
+        <span class="proj-item-qty">${(r.qty|0) > 0 ? '×'+(r.qty|0) : ''}</span>
       </div>`;
     };
     const own    = g.items.filter(r => r.note !== '[レンタル]' && r.note !== '(在庫管理外)');
