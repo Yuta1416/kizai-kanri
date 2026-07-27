@@ -1020,30 +1020,23 @@ function saveEditProject() {
   };
   if (!payload.meta.project) { alert('案件名は必須です'); return; }
   if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
-  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中...';
   const body = JSON.stringify({ action: 'edit_project', data: JSON.stringify(payload) });
   console.log('[edit_project] POST body size:', body.length, 'items:', payload.items.length);
-  // fetch POST (mode:no-cors)：レスポンスは opaque だが GAS 側は処理される
+  // 送信（no-cors・レスポンスは opaque だが GAS 側は処理される）。完了は LINE/Slack 通知で分かる
   fetch(GAS_API_URL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: body
-  }).then(() => {
-    // GAS の処理時間（20-40秒）を待ってからリロード
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-check"></i> 保存';
-      closeModal('modal-edit-project');
-      closeModal('modal-project-detail');
-      alert('✓ 反映しました（LINE/Slack通知が届いていれば処理完了）');
-      reloadData();
-    }, 25000);
-  }).catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-check"></i> 保存';
-    alert('通信エラー：' + err.message);
-  });
+  }).catch(err => console.warn('[edit_project]送信警告:', err));
+  // モーダルは即閉じてユーザーを待たせない。反映はバックグラウンドで進み、自動更新で取り込む
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存'; }
+  closeModal('modal-edit-project');
+  closeModal('modal-project-detail');
+  alert('反映を開始しました。20〜40秒ほどで完了し、LINE/Slackに通知が届きます。画面は自動で更新されます。');
+  // 反映結果を取り込むため段階的に自動リロード（機材が多い案件は時間がかかるため2回）
+  setTimeout(() => { try { reloadData(); } catch(_){} }, 30000);
+  setTimeout(() => { try { reloadData(); } catch(_){} }, 60000);
 }
 
 // エラーフォルダ一覧を取得して表示
