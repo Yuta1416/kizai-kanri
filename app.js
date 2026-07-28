@@ -1,7 +1,12 @@
 // 接続先バックエンドを実行環境で自動切替（本番ドメイン=本番GAS / Vercelプレビュー・ローカル=テストGAS）
 const GAS_PROD    = 'https://script.google.com/macros/s/AKfycbzMqsT8BLQvl8C1-VORWTyv1cPjRZtN0UIFh-NiAIZv1eqApo0Np_vrCW5PknLnGWLD/exec';
 const GAS_STAGING = 'https://script.google.com/macros/s/AKfycbyo6KmMkvvZx4C-sfL90SSADdqh2c4M-fggdH0BddSbNODyd0K--nfRrpZn2OTUEfcq/exec';
-const GAS_API_URL = (location.hostname.includes('-git-') || location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? GAS_STAGING : GAS_PROD;
+// 本番: 独自ドメイン(kizai-kanri-virid) と main別名(-git-main-) は本番GAS。
+// テスト: dev等のブランチプレビュー(-git-xxx-) と ローカル は テストGAS。
+const _host = location.hostname;
+const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
+const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-');
+const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
