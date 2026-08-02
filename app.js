@@ -1948,6 +1948,9 @@ function renderReservations() {
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
+            <button class="act" style="font-size:11px" onclick="openEditReservation('${project.replace(/'/g,"\\'")}','${g.dateKey}',event)">
+              <i class="ti ti-edit"></i> 編集
+            </button>
             <button class="act" style="font-size:11px" onclick="downloadPickupList('${project.replace(/'/g,"\\'")}','${g.dateKey}',event)">
               <i class="ti ti-file-download"></i> DL
             </button>
@@ -1959,6 +1962,14 @@ function renderReservations() {
         <div class="proj-group-body" style="display:none">${rows}</div>
       </div>`;
   }).join('');
+}
+
+// 予約タブから案件編集モーダルを開く（既存 openEditProject を pdProject/pdDateKey 経由で流用）
+function openEditReservation(project, dateKey, e) {
+  if (e) e.stopPropagation();
+  pdProject = project;
+  pdDateKey = dateKey;
+  openEditProject();
 }
 
 function cancelReservation(project, dateKey, e) {
