@@ -907,10 +907,19 @@ function showProjectDetail(project, dateKey, ev) {
   if (ev) ev.stopPropagation();
   if (dateKey && typeof dateKey === 'object') { ev = dateKey; dateKey = ''; } // 旧呼び出し互換
   const matchKey = p => (p || '（案件名未入力）') === project;
-  const matchDate = o => !dateKey || dateKeyOf(o.dateOut || o.date) === dateKey;
-  const projectItems = outItems.filter(o => matchKey(o.project) && matchDate(o));
+  // クリックした日(dateKey)が「搬入〜返却」の期間内に入るレコードを一致とみなす。
+  // マルチデイ案件で搬入日以外の日を選んでも同じ案件の機材が出るようにし、
+  // 履歴フォールバック（処理時刻や履歴明細が誤表示される原因）を防ぐ。
+  const inSpan = (dOut, dRet) => {
+    if (!dateKey) return true;
+    const kOut = dateKeyOf(dOut);
+    if (!kOut) return false;
+    const kRet = dateKeyOf(dRet) || kOut;
+    return kOut <= dateKey && dateKey <= kRet;
+  };
+  const projectItems = outItems.filter(o => matchKey(o.project) && inSpan(o.dateOut || o.date, o.returnDate || o.dateReturn));
   // 予約中の機材（itemName→model, dateReturn→returnDate に正規化）
-  const resItems = (reservations || []).filter(r => matchKey(r.project) && (!dateKey || dateKeyOf(r.dateOut) === dateKey)).map(r => ({
+  const resItems = (reservations || []).filter(r => matchKey(r.project) && inSpan(r.dateOut, r.dateReturn)).map(r => ({
     model: r.itemName, qty: r.qty, category: r.category, note: r.note,
     dateOut: r.dateOut, returnDate: r.dateReturn, staff: r.staff, vehicle: r.vehicle, date: r.dateOut
   }));
@@ -923,7 +932,8 @@ function showProjectDetail(project, dateKey, ev) {
   const staff   = items[0].staff || '—';
   const vehicle = items[0].vehicle || '';
   pdProject = project;
-  pdDateKey = dateKey || dateKeyOf(items[0].dateOut || items[0].date);
+  // 編集/DLは搬入日を正とする（クリックした日が搬入日以外でも案件を正しく特定）
+  pdDateKey = dateKeyOf(items[0].dateOut || items[0].date) || dateKey;
   // タイトルに搬入日を付けて同名現場を区別
   const _d = parseDate(items[0].dateOut || items[0].date);
   const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
