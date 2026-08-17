@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1395,7 +1395,23 @@ function renderConflictBanner() {
   if (!el) return;
   if (!conflicts || !conflicts.length) { el.innerHTML = ''; return; }
   const items = conflicts.map(c => `${escHtml(c.model)}（${c.shortage}不足）`).join('、');
-  el.innerHTML = `<div class="conflict-alert" onclick="switchTab('dashboard',document.querySelector('.tab:last-child'))"><i class="ti ti-alert-triangle"></i> <strong>予約重複で在庫超過：</strong>${items}<span style="opacity:.75"> — タップで詳細</span></div>`;
+  el.innerHTML = `<div class="conflict-alert" onclick="openConflictModal()"><i class="ti ti-alert-triangle"></i> <strong>予約重複で在庫超過：</strong>${items}<span style="opacity:.75"> — タップで詳細</span></div>`;
+}
+
+// 在庫超過（予約重複）の詳細をモーダルで表示（旧ダッシュボードの代替）
+function openConflictModal() {
+  const body = document.getElementById('conflict-detail-body');
+  if (!body) return;
+  if (!conflicts || !conflicts.length) {
+    body.innerHTML = '<div style="color:var(--text2);padding:8px 0">現在、在庫超過はありません。</div>';
+  } else {
+    body.innerHTML = conflicts.map(c => `
+      <div style="padding:10px 2px;border-bottom:0.5px solid var(--border)">
+        <div style="font-weight:700;font-size:14px">${escHtml(c.model)} <span style="color:var(--danger-text)">必要${c.peak} / 総数${c.total}（${c.shortage}個不足）</span></div>
+        ${(c.bookings||[]).map(b => `<div style="font-size:12px;color:var(--text2);margin-top:3px">・${escHtml(b.project||'（未入力）')} ×${b.qty}　${escHtml(fmtDateDisp(b.dateOut))} 〜 ${escHtml(fmtDateDisp(b.dateReturn))}</div>`).join('')}
+      </div>`).join('');
+  }
+  openModal('modal-conflict');
 }
 
 function renderDashboard() {

@@ -328,5 +328,20 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="modal-conflict">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 style="color:var(--danger-text)"><i class="ti ti-alert-triangle"></i> 予約重複で在庫超過</h3>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">同じ機材を、期間（日時）が重なって予約／持ち出ししています。日程・数量の調整、または在庫の追加が必要です。</div>
+      <div id="conflict-detail-body"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-conflict')">閉じる</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
