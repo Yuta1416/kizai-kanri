@@ -1002,21 +1002,43 @@ function openEditProject() {
 }
 function renderEpItems() {
   const kindLabel = { own:'自社', rental:'レンタル', free:'フリー' };
-  // 在庫マスターの型番一覧を候補に（重複除去）。自社機材の入力欄に datalist で出す
-  const models = [...new Set((inv || []).map(x => x.model).filter(Boolean))];
-  const datalist = `<datalist id="ep-model-datalist">${models.map(m => `<option value="${escHtml(m)}"></option>`).join('')}</datalist>`;
+  const invList = inv || [];
+  // メーカー候補（在庫マスターの会社/メーカー一覧・重複除去）
+  const makers = [...new Set(invList.map(x => x.maker).filter(Boolean))];
+  const makerDatalist = `<datalist id="ep-maker-datalist">${makers.map(m => `<option value="${escHtml(m)}"></option>`).join('')}</datalist>`;
+  // 全型番候補
+  const allModels = [...new Set(invList.map(x => x.model).filter(Boolean))];
   const html = epItemsState.map((it, i) => {
     const showMaker = it.kind !== 'free';
-    const listAttr = it.kind === 'own' ? 'list="ep-model-datalist"' : '';
+    // 自社行：メーカーが入っていればそのメーカーの型番に絞った候補、無ければ全型番
+    let rowModels = allModels;
+    if (it.kind === 'own' && it.maker && it.maker.trim()) {
+      const mk = it.maker.trim();
+      const filtered = [...new Set(invList.filter(x => String(x.maker) === mk).map(x => x.model).filter(Boolean))];
+      if (filtered.length) rowModels = filtered;
+    }
+    const modelListId = `ep-model-dl-${i}`;
+    const modelDatalist = it.kind === 'own'
+      ? `<datalist id="${modelListId}">${rowModels.map(m => `<option value="${escHtml(m)}"></option>`).join('')}</datalist>` : '';
+    const nameListAttr  = it.kind === 'own' ? `list="${modelListId}"` : '';
+    const makerListAttr = (showMaker && it.kind === 'own') ? 'list="ep-maker-datalist"' : '';
     return `<div class="ep-item-row" data-i="${i}">
+      ${modelDatalist}
       <span class="ep-badge ep-${it.kind}">${kindLabel[it.kind]||it.kind}</span>
-      ${showMaker ? `<input class="ep-in-maker" placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value">` : ''}
-      <input class="ep-in-name" ${listAttr} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value" onchange="epOnNameChange(${i},this.value)">
+      ${showMaker ? `<input class="ep-in-maker" ${makerListAttr} placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value" onchange="epOnMakerChange(${i},this.value)">` : ''}
+      <input class="ep-in-name" ${nameListAttr} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value" onchange="epOnNameChange(${i},this.value)">
       <input class="ep-in-qty" type="number" min="0" value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0">
       <button class="btn ep-del" onclick="epDeleteItem(${i})"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
-  document.getElementById('ep-items').innerHTML = datalist + (html || '<div style="color:var(--text2);font-size:12px;padding:8px 0">（機材なし＝人員のみ現場として登録されます）</div>');
+  document.getElementById('ep-items').innerHTML = makerDatalist + (html || '<div style="color:var(--text2);font-size:12px;padding:8px 0">（機材なし＝人員のみ現場として登録されます）</div>');
+}
+// メーカーを入れ/選んだら、その行の型番候補をそのメーカーの機材に絞り直す
+function epOnMakerChange(i, val) {
+  const it = epItemsState[i];
+  if (!it) return;
+  it.maker = val;
+  if (it.kind === 'own') renderEpItems();
 }
 // 候補から型番を選んだら、自社機材はメーカーを在庫マスターから自動補完
 function epOnNameChange(i, val) {
