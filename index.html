@@ -21,14 +21,20 @@
   <div class="spinner"></div>
   <div class="loading-label">読み込み中...</div>
 </div>
+<div id="update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#2563eb;color:#fff;padding:10px 16px;align-items:center;justify-content:center;gap:14px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.35)">
+  <span><i class="ti ti-rocket" aria-hidden="true"></i> 新しいバージョンがあります</span>
+  <button onclick="applyUpdate()" style="background:#fff;color:#2563eb;border:none;border-radius:6px;padding:6px 16px;font-weight:700;cursor:pointer">今すぐ更新</button>
+</div>
 <div class="app">
   <header class="topbar">
     <div class="topbar-left">
       <i class="ti ti-package" aria-hidden="true"></i>
       <h1>機材在庫管理</h1>
+      <span id="app-version" style="font-size:10px;color:var(--text2);margin-left:6px;opacity:.7"></span>
     </div>
     <div class="topbar-right">
       <button class="btn" onclick="reloadData()" id="reload-btn"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
+      <button class="btn" onclick="resyncStock()" id="resync-btn"><i class="ti ti-calculator" aria-hidden="true"></i> 在庫再計算</button>
       <button class="btn" onclick="downloadPickupList()" id="pickup-btn"><i class="ti ti-file-download" aria-hidden="true"></i> 持ち出しリスト</button>
       <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
       <button class="btn" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i> CSV出力</button>

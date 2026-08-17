@@ -8,6 +8,9 @@ const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
 const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-');
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
+// ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
+const APP_VERSION = 'v33';
+
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
   'PARTIAL':   {cls:'s-partial',icon:'ti-circle-half'},
@@ -2087,10 +2090,68 @@ setInterval(fetchFromSpreadsheet, 300000);
 setInterval(checkAutoReturn, 60000);
 
 
-// Service Worker 登録
+// Service Worker 登録＋自動更新チェック
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .catch(err => console.warn('SW registration failed:', err));
+  let _swReloading = false;
+  // 新SWが制御を握ったら一度だけリロード（最新アプリに切替）
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloading) return;
+    _swReloading = true;
+    location.reload();
   });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' });
+      const checkUpdate = () => { reg.update().catch(() => {}); };
+      // アプリを前面に戻した時＋1分ごとに更新チェック（インストール済みPWAでも最新を検知）
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+      setInterval(checkUpdate, 60 * 1000);
+      // 既に待機中の新SWがあればバナー表示
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+      // 新SW検知→インストール完了でバナー
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(nw);
+        });
+      });
+    } catch (err) { console.warn('SW registration failed:', err); }
+  });
+}
+function showUpdateBanner(worker) {
+  window._pendingSW = worker;
+  const b = document.getElementById('update-banner');
+  if (b) b.style.display = 'flex';
+}
+function applyUpdate() {
+  const w = window._pendingSW;
+  if (w) w.postMessage({ type: 'SKIP_WAITING' }); // 新SWを有効化→controllerchange→自動リロード
+  setTimeout(() => location.reload(), 1500);       // 念のためのフォールバック
+}
+// 版番号を画面に表示
+(function(){ const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; })();
+
+// 在庫を持ち出し中レコードから再計算（ズレの手動訂正）
+function resyncStock() {
+  if (!confirm('持ち出し中の記録をもとに在庫数を再計算します。よろしいですか？')) return;
+  const btn = document.getElementById('resync-btn');
+  if (btn) { btn.disabled = true; }
+  const cb = 'resyncCb_' + Date.now();
+  window[cb] = function(json) {
+    delete window[cb];
+    const s = document.getElementById('jsonp_' + cb); if (s) s.remove();
+    if (btn) btn.disabled = false;
+    if (json && json.status === 'ok') {
+      alert(`在庫を再計算しました（${json.fixed}件を修正）`);
+      reloadData();
+    } else {
+      alert('再計算に失敗しました: ' + ((json && json.message) || '不明なエラー'));
+    }
+  };
+  const s = document.createElement('script');
+  s.id = 'jsonp_' + cb;
+  s.src = GAS_API_URL + '?action=debug_resync_master&callback=' + cb;
+  s.onerror = function() { delete window[cb]; s.remove(); if (btn) btn.disabled = false; alert('接続エラー'); };
+  document.body.appendChild(s);
 }
