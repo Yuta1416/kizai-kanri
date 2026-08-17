@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v37';
+const APP_VERSION = 'v38';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -584,14 +584,12 @@ function _renderHistoryInner(container) {
             </div>
             <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">
               <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();downloadHistoryPickupList('${project.replace(/'/g,"\\'")}')"><i class="ti ti-file-download"></i> リストDL</button>
-              <span class="proj-count">${g.items.length}件</span>
             </div>
           </div>
           <div class="proj-group-body" style="display:none">${itemRows}</div>
         </div>`;
     }).join('');
 
-    const totalItems = Object.values(projects).reduce((s,g)=>s+g.items.length,0);
     return `
       <div class="proj-group" style="margin-bottom:10px">
         <div class="proj-group-head" onclick="toggleGroup(this)">
@@ -600,7 +598,7 @@ function _renderHistoryInner(container) {
             <span class="proj-group-name"><i class="ti ti-calendar" style="font-size:14px;margin-right:4px"></i>${ym}</span>
           </div>
           <div class="proj-group-right">
-            <span class="proj-count">${Object.keys(projects).length}案件 / ${totalItems}件</span>
+            <span class="proj-count">${Object.keys(projects).length}案件</span>
           </div>
         </div>
         <div class="proj-group-body" style="padding:6px 8px">${projectRows}</div>
