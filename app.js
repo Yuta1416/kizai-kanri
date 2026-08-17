@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2129,8 +2129,9 @@ function applyUpdate() {
   if (w) w.postMessage({ type: 'SKIP_WAITING' }); // 新SWを有効化→controllerchange→自動リロード
   setTimeout(() => location.reload(), 1500);       // 念のためのフォールバック
 }
-// 版番号を画面に表示
-(function(){ const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; })();
+// 版番号を画面に表示（フッターはこの<script>より後に解析されるためDOM構築後にセット）
+function _setAppVersion(){ const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _setAppVersion); else _setAppVersion();
 
 // 在庫を持ち出し中レコードから再計算（ズレの手動訂正）
 function resyncStock() {
