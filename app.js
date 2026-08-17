@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v38';
+const APP_VERSION = 'v39';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -594,14 +594,14 @@ function _renderHistoryInner(container) {
       <div class="proj-group" style="margin-bottom:10px">
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
-            <i class="ti ti-chevron-down proj-chevron"></i>
+            <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
             <span class="proj-group-name"><i class="ti ti-calendar" style="font-size:14px;margin-right:4px"></i>${ym}</span>
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${Object.keys(projects).length}案件</span>
           </div>
         </div>
-        <div class="proj-group-body" style="padding:6px 8px">${projectRows}</div>
+        <div class="proj-group-body" style="padding:6px 8px;display:none">${projectRows}</div>
       </div>`;
   }).join('');
 }
