@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v39';
+const APP_VERSION = 'v40';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -978,8 +978,69 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // ==================== 案件編集モーダル ====================
 let epItemsState = [];
+let epCreateMode = false;
+// ヘッダー「エクセル投入」：記入済みの荷出しエクセルをアプリからアップロード＝Dropbox投入と同じ処理
+function triggerIngestUpload() {
+  const inp = document.getElementById('ingest-file-input');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+function ingestUploadFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!/\.(xlsx|xls)$/i.test(file.name)) { alert('xlsx / xls ファイルを選んでください'); return; }
+  if (!confirm(`「${file.name}」を投入します。\n記入済みの荷出しエクセルとして処理され、予約/持ち出し登録・荷出しリスト作成・通知まで自動で行われます。よろしいですか？`)) return;
+  const btn = document.getElementById('ingest-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 投入中...'; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    // dataURL の "base64," 以降を取り出す
+    const b64 = String(reader.result).split(',')[1] || '';
+    const payload = { filename: file.name, contentB64: b64 };
+    const body = JSON.stringify({ action: 'ingest_upload', data: JSON.stringify(payload) });
+    console.log('[ingest_upload] POST body size:', body.length, 'file:', file.name);
+    fetch(GAS_API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body
+    }).catch(err => console.warn('[ingest_upload]送信警告:', err));
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-upload"></i> エクセル投入'; }
+    alert('投入しました。30〜60秒ほどで処理が完了し、LINE/Slackに結果が通知されます。画面は自動で更新されます。\n※在庫不足やエラーの場合も通知で分かります。');
+    setTimeout(() => { try { reloadData(); } catch(_){} }, 40000);
+    setTimeout(() => { try { reloadData(); } catch(_){} }, 75000);
+  };
+  reader.onerror = () => { alert('ファイルの読み込みに失敗しました'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-upload"></i> エクセル投入'; } };
+  reader.readAsDataURL(file);
+}
+// 担当者・車両の入力候補を既存データから生成
+function populateEpCandidates() {
+  const src = [].concat(outItems||[], reservations||[], history||[]);
+  const staffs = [...new Set(src.map(x => x.staff).filter(s => s && s !== '未入力'))];
+  const vehicles = [...new Set(src.map(x => x.vehicle).filter(Boolean))];
+  const sEl = document.getElementById('ep-staff-datalist');
+  const vEl = document.getElementById('ep-vehicle-datalist');
+  if (sEl) sEl.innerHTML = staffs.map(s => `<option value="${escHtml(s)}"></option>`).join('');
+  if (vEl) vEl.innerHTML = vehicles.map(v => `<option value="${escHtml(v)}"></option>`).join('');
+}
+// ヘッダー「＋新規案件」：編集モーダルを空の作成モードで開く（UI/オートコンプリートを流用）
+function openCreateProject() {
+  epCreateMode = true;
+  pdProject = '';
+  pdDateKey = '';
+  epItemsState = [];
+  document.getElementById('ep-title').textContent = '（新規）';
+  const h3 = document.querySelector('#modal-edit-project h3');
+  if (h3) h3.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i> 案件を新規作成 <span id="ep-title" style="color:var(--text2);font-size:13px;margin-left:8px">（新規）</span>';
+  ['ep-project','ep-staff','ep-vehicle','ep-dateout','ep-dateret'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  populateEpCandidates();
+  renderEpItems();
+  openModal('modal-edit-project');
+}
 function openEditProject() {
   if (!pdProject) return;
+  epCreateMode = false;
+  populateEpCandidates();
+  const h3 = document.querySelector('#modal-edit-project h3');
+  if (h3) h3.innerHTML = '<i class="ti ti-edit" aria-hidden="true"></i> 案件を編集 <span id="ep-title" style="color:var(--text2);font-size:13px;margin-left:8px"></span>';
   const projectItems = outItems.filter(o => (o.project||'（案件名未入力）') === pdProject && (!pdDateKey || dateKeyOf(o.dateOut||o.date) === pdDateKey));
   const resItems = (reservations||[]).filter(r => r.project === pdProject && (!pdDateKey || dateKeyOf(r.dateOut) === pdDateKey));
   const rows = projectItems.length ? projectItems.map(o => ({
@@ -1061,22 +1122,25 @@ function epDeleteItem(i) {
 }
 function saveEditProject() {
   const btn = document.getElementById('ep-save-btn');
-  const payload = {
-    origProject: pdProject,
-    origDateKey: pdDateKey || '',
-    meta: {
-      project:    document.getElementById('ep-project').value.trim(),
-      staff:      document.getElementById('ep-staff').value.trim(),
-      vehicle:    document.getElementById('ep-vehicle').value.trim(),
-      dateOut:    document.getElementById('ep-dateout').value.trim(),
-      dateReturn: document.getElementById('ep-dateret').value.trim(),
-    },
-    items: epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && ((it.qty|0) > 0 || it.kind === 'rental' || it.kind === 'free'))
+  const meta = {
+    project:    document.getElementById('ep-project').value.trim(),
+    staff:      document.getElementById('ep-staff').value.trim(),
+    vehicle:    document.getElementById('ep-vehicle').value.trim(),
+    dateOut:    document.getElementById('ep-dateout').value.trim(),
+    dateReturn: document.getElementById('ep-dateret').value.trim(),
   };
-  if (!payload.meta.project) { alert('案件名は必須です'); return; }
-  if (!confirm('この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？')) return;
-  const body = JSON.stringify({ action: 'edit_project', data: JSON.stringify(payload) });
-  console.log('[edit_project] POST body size:', body.length, 'items:', payload.items.length);
+  const items = epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && ((it.qty|0) > 0 || it.kind === 'rental' || it.kind === 'free'));
+  if (!meta.project) { alert('案件名は必須です'); return; }
+  const action = epCreateMode ? 'create_project' : 'edit_project';
+  const payload = epCreateMode
+    ? { meta, items }
+    : { origProject: pdProject, origDateKey: pdDateKey || '', meta, items };
+  const confirmMsg = epCreateMode
+    ? 'この内容で新規案件を登録します。搬入日が未来なら予約、当日以降なら持ち出しとして登録され、荷出しリストも作成されます。よろしいですか？'
+    : 'この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？';
+  if (!confirm(confirmMsg)) return;
+  const body = JSON.stringify({ action, data: JSON.stringify(payload) });
+  console.log('[' + action + '] POST body size:', body.length, 'items:', items.length);
   // 送信（no-cors・レスポンスは opaque だが GAS 側は処理される）。完了は LINE/Slack 通知で分かる
   fetch(GAS_API_URL, {
     method: 'POST',

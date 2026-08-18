@@ -36,7 +36,9 @@
       <button class="btn" onclick="resyncStock()" id="resync-btn"><i class="ti ti-calculator" aria-hidden="true"></i> 在庫再計算</button>
       <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
       <button class="btn" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i> CSV出力</button>
-      <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
+      <button class="btn" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
+      <input type="file" id="ingest-file-input" accept=".xlsx,.xls" style="display:none" onchange="ingestUploadFile(this)">
+      <button class="btn btn-primary" onclick="triggerIngestUpload()" id="ingest-btn"><i class="ti ti-file-upload" aria-hidden="true"></i> エクセル投入</button>
     </div>
   </header>
 
@@ -282,8 +284,8 @@
     <h3><i class="ti ti-edit" aria-hidden="true"></i> 案件を編集 <span id="ep-title" style="color:var(--text2);font-size:13px;margin-left:8px"></span></h3>
     <div class="fr" style="max-height:60vh;overflow-y:auto">
       <div class="ep-field"><label>案件名</label><input id="ep-project" type="text"></div>
-      <div class="ep-field"><label>担当者</label><input id="ep-staff" type="text"></div>
-      <div class="ep-field"><label>車両</label><input id="ep-vehicle" type="text" placeholder="例: キャラバン・トラック"></div>
+      <div class="ep-field"><label>担当者</label><input id="ep-staff" type="text" list="ep-staff-datalist"><datalist id="ep-staff-datalist"></datalist></div>
+      <div class="ep-field"><label>車両</label><input id="ep-vehicle" type="text" placeholder="例: キャラバン・トラック" list="ep-vehicle-datalist"><datalist id="ep-vehicle-datalist"></datalist></div>
       <div class="ep-field"><label>搬入日</label><input id="ep-dateout" type="text" placeholder="2026/7/22"></div>
       <div class="ep-field"><label>返却日</label><input id="ep-dateret" type="text" placeholder="2026/7/22"></div>
       <div style="margin:12px 0 6px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center">
