@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v40';
+const APP_VERSION = 'v41';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -351,6 +351,7 @@ function openItemDetail(idx) {
     (item.out>0?`<button class="btn" onclick="closeModal('modal-detail');openReturn(${idx})"><i class="ti ti-arrow-down-left"></i> 返却</button>`:'') +
     (av>0?`<button class="btn" onclick="closeModal('modal-detail');openSpecial(${idx})"><i class="ti ti-tool"></i> 特殊</button>`:'') +
     `<button class="btn" onclick="closeModal('modal-detail');openNoteModal(${idx})"><i class="ti ti-pencil"></i> 備考</button>` +
+    `<button class="btn" onclick="closeModal('modal-detail');openEditItem(${idx})"><i class="ti ti-edit"></i> 編集</button>` +
     `<button class="btn act d" onclick="closeModal('modal-detail');deleteItem(${idx})"><i class="ti ti-trash"></i></button>`;
   openModal('modal-detail');
 }
@@ -851,7 +852,29 @@ function doEditNote() {
   closeModal('modal-note'); render();
 }
 
+// GASへJSONPで送信（レスポンスのstatusを受け取れる）
+function gasJsonp(params, onDone) {
+  if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') { if(onDone) onDone({status:'error',message:'API未設定'}); return; }
+  const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  params.callback = cbName;
+  window[cbName] = function(json){
+    delete window[cbName];
+    const el = document.getElementById('jsonp_' + cbName); if (el) el.remove();
+    if (onDone) onDone(json||{});
+  };
+  const script = document.createElement('script');
+  script.id = 'jsonp_' + cbName;
+  script.src = GAS_API_URL + '?' + new URLSearchParams(params).toString();
+  script.onerror = function(){ if(window[cbName]) window[cbName]({status:'error',message:'通信エラー'}); };
+  document.body.appendChild(script);
+}
+
+let addEditRow = null;      // 編集対象の在庫マスター行番号（nullなら新規追加）
+let addEditOrigModel = '';  // 誤更新防止用の元型番
 function openAddModal() {
+  addEditRow = null; addEditOrigModel = '';
+  const h3=document.querySelector('#modal-add h3'); if(h3) h3.innerHTML='<i class="ti ti-plus"></i> 機材追加';
+  const sb=document.querySelector('#modal-add .btn-primary'); if(sb) sb.innerHTML='追加';
   const cats=[...new Set(inv.map(i=>i.cat))].sort();
   const catSel=document.getElementById('add-cat-sel');
   catSel.innerHTML='<option value="">— 新規入力 —</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -863,6 +886,21 @@ function openAddModal() {
   catSel.value=''; makerSel.value='';
   openModal('modal-add');
 }
+// 在庫一覧から既存機材を編集（追加モーダルを流用）
+function openEditItem(idx) {
+  const item = inv[idx];
+  if (!item) return;
+  openAddModal();
+  addEditRow = item.row || null;
+  addEditOrigModel = item.model || '';
+  const h3=document.querySelector('#modal-add h3'); if(h3) h3.innerHTML='<i class="ti ti-edit"></i> 機材を編集';
+  const sb=document.querySelector('#modal-add .btn-primary'); if(sb) sb.innerHTML='保存';
+  document.getElementById('add-cat').value = item.cat||'';
+  document.getElementById('add-maker').value = item.maker && item.maker!=='—' ? item.maker : '';
+  document.getElementById('add-model').value = item.model||'';
+  document.getElementById('add-qty').value = item.total||0;
+  document.getElementById('add-note').value = item.note||'';
+}
 function syncCombo(selId, inputId) {
   const val=document.getElementById(selId).value;
   if(val) document.getElementById(inputId).value=val;
@@ -871,26 +909,56 @@ function doAdd() {
   const cat=document.getElementById('add-cat').value.trim();
   const maker=document.getElementById('add-maker').value.trim();
   const model=document.getElementById('add-model').value.trim();
-  const qty=parseInt(document.getElementById('add-qty').value)||0;
+  const total=parseInt(document.getElementById('add-qty').value);
   const note=document.getElementById('add-note').value.trim();
-  if(!model||qty<1){alert('型番と数量は必須です');return;}
+  if(!model||isNaN(total)||total<0){alert('型番と総在庫数（0以上）は必須です');return;}
 
-  // 同じ型番が既にあれば在庫数を増やす
-  const existing = inv.find(i => i.model === model);
-  if (existing) {
-    if (!confirm(`「${model}」は既に登録済みです。\n在庫数を${existing.total}→${existing.total+qty}に増やしますか？`)) return;
-    existing.total += qty;
-    existing.status = existing.out >= existing.total ? 'OUT' : existing.out > 0 ? 'PARTIAL' : 'IN';
+  // ===== 編集モード：既存行を更新してスプレッドシートに保存 =====
+  if (addEditRow) {
+    const data = { row: addEditRow, cat: cat||'その他', maker: maker||'—', model, note, total, origModel: addEditOrigModel };
+    const item = inv.find(i => i.row === addEditRow);
+    if (item) { item.cat=cat||'その他'; item.maker=maker||'—'; item.model=model; item.note=note; item.total=total; item.stock=Math.max(0,total-(item.out||0)); }
     closeModal('modal-add'); render();
+    gasJsonp({ action:'edit_inventory_item', data: JSON.stringify(data) }, json => {
+      if (json.status==='error') { alert('⚠️ 保存できませんでした: ' + (json.message||'')); }
+      setTimeout(()=>{ try{ reloadData(); }catch(_){} }, 1200);
+    });
     return;
   }
 
-  inv.push({cat:cat||'その他',maker:maker||'—',model,total:qty,out:0,special:0,status:'IN',note});
+  // ===== 追加モード：同じ型番があれば総数を増やす（既存行の編集）=====
+  const existing = inv.find(i => i.model === model);
+  if (existing) {
+    const newTotal = (existing.total||0) + total;
+    if (!confirm(`「${model}」は既に登録済みです。\n在庫数を${existing.total}→${newTotal}に増やしますか？`)) return;
+    const data = { row: existing.row, cat: existing.cat, maker: existing.maker, model, note: existing.note||'', total: newTotal, origModel: model };
+    existing.total = newTotal; existing.stock = Math.max(0, newTotal-(existing.out||0));
+    closeModal('modal-add'); render();
+    gasJsonp({ action:'edit_inventory_item', data: JSON.stringify(data) }, json => {
+      if (json.status==='error') alert('⚠️ 保存できませんでした: ' + (json.message||''));
+      setTimeout(()=>{ try{ reloadData(); }catch(_){} }, 1200);
+    });
+    return;
+  }
+
+  // ===== 追加モード：新規行を作成 =====
+  inv.push({row:null,cat:cat||'その他',maker:maker||'—',model,total,stock:total,out:0,special:0,status:'IN',note});
   closeModal('modal-add'); render();
+  gasJsonp({ action:'add_inventory_item', data: JSON.stringify({cat:cat||'その他',maker:maker||'—',model,note,total}) }, json => {
+    if (json.status==='error') alert('⚠️ 追加できませんでした: ' + (json.message||''));
+    setTimeout(()=>{ try{ reloadData(); }catch(_){} }, 1200);  // 実際の行番号を取り込む
+  });
 }
 function deleteItem(idx) {
-  if(!confirm(`「${inv[idx].model}」を削除しますか？`))return;
+  const item = inv[idx];
+  if(!item) return;
+  if(!confirm(`「${item.model}」を在庫マスターから削除しますか？\n（この操作はスプレッドシートに保存されます）`))return;
+  const row = item.row, origModel = item.model;
   inv.splice(idx,1); render();
+  gasJsonp({ action:'delete_inventory_item', data: JSON.stringify({row, origModel}) }, json => {
+    if (json.status==='error') alert('⚠️ 削除できませんでした: ' + (json.message||''));
+    setTimeout(()=>{ try{ reloadData(); }catch(_){} }, 1200);
+  });
 }
 
 
@@ -1319,6 +1387,7 @@ function applyData(json) {
       const isSpecial = ['修理中','レンタル中','長期不在'].includes(status);
       const special = isSpecial ? Math.max(0, total - stock - out) : 0;
       return {
+        row:     r.row || null,
         cat:     String(r.cat   || ''),
         maker:   String(r.maker || ''),
         model:   String(r.model || ''),
