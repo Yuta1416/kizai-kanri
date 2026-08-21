@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v42';
+const APP_VERSION = 'v43';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1077,6 +1077,35 @@ function ingestUploadFile(input) {
     setTimeout(() => { try { reloadData(); } catch(_){} }, 75000);
   };
   reader.onerror = () => { alert('ファイルの読み込みに失敗しました'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-upload"></i> エクセル投入'; } };
+  reader.readAsDataURL(file);
+}
+// 荷だし表テンプレを更新（アップロード→テンプレ差し替え＋直下アーカイブ＋Slack通知）
+function triggerTemplateUpload() {
+  const inp = document.getElementById('template-file-input');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+function templateUploadFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!/\.(xlsx|xls)$/i.test(file.name)) { alert('xlsx / xls ファイルを選んでください'); return; }
+  if (!confirm(`「${file.name}」で荷だし表テンプレを更新します。\n荷出しリスト生成に使うテンプレが差し替わり、Slack/LINEに更新通知が届きます。よろしいですか？`)) return;
+  const btn = document.getElementById('template-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 更新中...'; }
+  const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-spreadsheet"></i> 荷だし表更新'; } };
+  const reader = new FileReader();
+  reader.onload = () => {
+    // テンプレのbase64は大きいので POST(no-cors)。レスポンスはopaqueだが完了はSlack/LINE通知で分かる
+    const b64 = String(reader.result).split(',')[1] || '';
+    const body = JSON.stringify({ action: 'update_template', data: JSON.stringify({ filename: file.name, contentB64: b64 }) });
+    fetch(GAS_API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body
+    }).catch(err => console.warn('[update_template]送信警告:', err));
+    restore();
+    alert('荷だし表を更新しました。数秒後にSlack/LINEへ更新通知が届きます。');
+  };
+  reader.onerror = () => { alert('ファイルの読み込みに失敗しました'); restore(); };
   reader.readAsDataURL(file);
 }
 // 担当者・車両の入力候補を既存データから生成

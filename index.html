@@ -36,6 +36,8 @@
       <button class="btn" onclick="resyncStock()" id="resync-btn"><i class="ti ti-calculator" aria-hidden="true"></i> 在庫再計算</button>
       <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
       <button class="btn" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
+      <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display:none" onchange="templateUploadFile(this)">
+      <button class="btn" onclick="triggerTemplateUpload()" id="template-btn"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> 荷だし表更新</button>
       <input type="file" id="ingest-file-input" accept=".xlsx,.xls" style="display:none" onchange="ingestUploadFile(this)">
       <button class="btn btn-primary" onclick="triggerIngestUpload()" id="ingest-btn"><i class="ti ti-file-upload" aria-hidden="true"></i> エクセル投入</button>
     </div>
