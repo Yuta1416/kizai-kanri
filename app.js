@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v44';
+const APP_VERSION = 'v45';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1079,6 +1079,23 @@ function ingestUploadFile(input) {
   reader.onerror = () => { alert('ファイルの読み込みに失敗しました'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-upload"></i> エクセル投入'; } };
   reader.readAsDataURL(file);
 }
+// ヘッダー「…」その他メニュー
+function toggleMoreMenu(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('more-menu');
+  if (!m) return;
+  m.style.display = (m.style.display === 'none' || !m.style.display) ? 'block' : 'none';
+}
+function closeMoreMenu() {
+  const m = document.getElementById('more-menu');
+  if (m) m.style.display = 'none';
+}
+// メニュー外クリックで閉じる
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('more-menu');
+  const b = document.getElementById('more-btn');
+  if (m && m.style.display === 'block' && !m.contains(e.target) && b && !b.contains(e.target)) m.style.display = 'none';
+});
 // 現在の荷だし表テンプレをアプリからダウンロード
 function downloadTemplate() {
   const btn = document.getElementById('template-dl-btn');

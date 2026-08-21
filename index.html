@@ -33,14 +33,18 @@
     </div>
     <div class="topbar-right">
       <button class="btn" onclick="reloadData()" id="reload-btn"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
-      <button class="btn" onclick="resyncStock()" id="resync-btn"><i class="ti ti-calculator" aria-hidden="true"></i> 在庫再計算</button>
-      <button class="btn" onclick="openErrorList()" id="error-btn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> エラー再投入</button>
-      <button class="btn" onclick="openAddModal()"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
       <button class="btn" onclick="downloadTemplate()" id="template-dl-btn"><i class="ti ti-file-download" aria-hidden="true"></i> 荷だし表DL</button>
       <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display:none" onchange="templateUploadFile(this)">
       <button class="btn" onclick="triggerTemplateUpload()" id="template-btn"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> 荷だし表更新</button>
       <input type="file" id="ingest-file-input" accept=".xlsx,.xls" style="display:none" onchange="ingestUploadFile(this)">
       <button class="btn btn-primary" onclick="triggerIngestUpload()" id="ingest-btn"><i class="ti ti-file-upload" aria-hidden="true"></i> エクセル投入</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn" onclick="toggleMoreMenu(event)" id="more-btn" aria-label="その他メニュー"><i class="ti ti-dots" aria-hidden="true"></i></button>
+        <div id="more-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:6px;min-width:190px;z-index:200;box-shadow:var(--shadow-lg)">
+          <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();resyncStock()"><i class="ti ti-calculator" aria-hidden="true" style="font-size:16px"></i> 在庫再計算</button>
+          <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openErrorList()"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:16px"></i> エラー再投入</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -104,6 +108,7 @@
         <option value="OUT">OUT</option><option value="修理中">修理中</option>
         <option value="レンタル中">レンタル中</option><option value="長期不在">長期不在</option>
       </select>
+      <button class="btn btn-primary" onclick="openAddModal()" style="white-space:nowrap"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
     </div>
     <div class="inv-layout">
       <div class="cat-sidebar" id="cat-sidebar"></div>
