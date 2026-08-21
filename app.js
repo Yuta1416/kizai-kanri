@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v43';
+const APP_VERSION = 'v44';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1078,6 +1078,31 @@ function ingestUploadFile(input) {
   };
   reader.onerror = () => { alert('ファイルの読み込みに失敗しました'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-upload"></i> エクセル投入'; } };
   reader.readAsDataURL(file);
+}
+// 現在の荷だし表テンプレをアプリからダウンロード
+function downloadTemplate() {
+  const btn = document.getElementById('template-dl-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 取得中...'; }
+  const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> 荷だし表DL'; } };
+  const cbName = 'tplDl_' + Date.now();
+  window[cbName] = function(json) {
+    delete window[cbName];
+    const el = document.getElementById('jsonp_' + cbName); if (el) el.remove();
+    restore();
+    if (!json || json.status !== 'ok') { alert('取得失敗: ' + ((json && json.message) || 'エラー')); return; }
+    const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = json.filename || '荷だし表.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const script = document.createElement('script');
+  script.id = 'jsonp_' + cbName;
+  script.src = GAS_API_URL + '?action=template_download&callback=' + cbName;
+  script.onerror = function() { delete window[cbName]; script.remove(); restore(); alert('取得に失敗しました'); };
+  document.body.appendChild(script);
 }
 // 荷だし表テンプレを更新（アップロード→テンプレ差し替え＋直下アーカイブ＋Slack通知）
 function triggerTemplateUpload() {
