@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v45';
+const APP_VERSION = 'v46';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -240,12 +240,21 @@ function renderStats() {
     repC=inv.filter(i=>calcSt(i)==='修理中').length,
     renC=inv.filter(i=>calcSt(i)==='レンタル中').length,
     absC=inv.filter(i=>calcSt(i)==='長期不在').length;
-  document.getElementById('stats').innerHTML=`
-    <div class="stat"><div class="stat-label">総品目数</div><div class="stat-val">${t}</div></div>
-    <div class="stat"><div class="stat-label">在庫中（IN）</div><div class="stat-val" style="color:var(--success-text)">${inC}</div></div>
-    <div class="stat"><div class="stat-label">持ち出し中</div><div class="stat-val" style="color:var(--danger-text)">${outC}</div></div>
-    <div class="stat"><div class="stat-label">修理・レンタル</div><div class="stat-val" style="color:var(--purple-text)">${repC+renC}</div></div>
-    <div class="stat"><div class="stat-label">長期不在</div><div class="stat-val" style="color:var(--gray-text)">${absC}</div></div>`;
+  const cards = [
+    { label:'総品目数',      val:t,         icon:'ti-package',        accent:'primary' },
+    { label:'在庫中（IN）',  val:inC,       icon:'ti-circle-check',   accent:'success' },
+    { label:'持ち出し中',    val:outC,      icon:'ti-arrow-up-right', accent:'danger' },
+    { label:'修理・レンタル', val:repC+renC, icon:'ti-tool',           accent:'purple' },
+    { label:'長期不在',      val:absC,      icon:'ti-clock-off',      accent:'gray' },
+  ];
+  document.getElementById('stats').innerHTML = cards.map(c => `
+    <div class="stat stat-${c.accent}">
+      <div class="stat-icon"><i class="ti ${c.icon}"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">${c.label}</div>
+        <div class="stat-val">${c.val}</div>
+      </div>
+    </div>`).join('');
 }
 
 let currentCat = '';
@@ -2020,23 +2029,23 @@ function renderTopPage() {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
+    const dowIdx = new Date(year, month, d).getDay();
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    const maxShow = 3;
-    const eventDots = events.slice(0, maxShow).map(function(ev) {
+    // 全件表示（5件以上あってもセルが縦に伸びるので途切れない）
+    const eventDots = events.map(function(ev) {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
-      const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
-      // 複数日案件は先頭日と末尾日にラベル表示、中間だけ空白（帯感を保ちつつ視認性UP）
+      const rawLabel = proj.length > 12 ? proj.slice(0,12)+'…' : proj;
       const showLabel = (ev.span !== 'mid');
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
       const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
     }).join('');
-    const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span>${eventDots}${overflow}</div>`;
+    const dowCls = dowIdx === 0 ? ' sun' : (dowIdx === 6 ? ' sat' : '');
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}</div></div>`;
   }
 
   calContainer.innerHTML = `
