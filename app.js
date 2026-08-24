@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v46';
+const APP_VERSION = 'v47';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1625,6 +1625,65 @@ function openConflictModal() {
   openModal('modal-conflict');
 }
 
+// カレンダーの「+N件」タップ：その日の予定を一覧表示。項目タップで個別詳細へ
+function openCalDayModal(dateKey, e) {
+  if (e) e.stopPropagation();
+  const y = parseInt(dateKey.slice(0,4)), m = parseInt(dateKey.slice(4,6))-1, d = parseInt(dateKey.slice(6,8));
+  const day = new Date(y, m, d); day.setHours(0,0,0,0);
+  const nextDay = new Date(y, m, d+1); nextDay.setHours(0,0,0,0);
+  const parse = (v) => { const dd = parseDate(v); return dd ? dd : null; };
+  const inSpan = (src) => {
+    const s = parse(src.dateOut || src.date); if (!s) return false;
+    const e2 = parse(src.dateReturn || src.returnDate) || s;
+    const sd = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const ed = new Date(e2.getFullYear(), e2.getMonth(), e2.getDate());
+    return sd <= day && day <= ed;
+  };
+  // 案件単位で集約（機材が複数行あっても1件）
+  const byKey = new Map();
+  const push = (src, kind) => {
+    if (!inSpan(src)) return;
+    const proj = (src.project || '（案件名未入力）');
+    const dOutRaw = src.dateOut || src.date || '';
+    const dOutKey = dateKeyOf(dOutRaw) || '';
+    const key = proj + '|' + dOutKey;
+    if (byKey.has(key)) return;
+    byKey.set(key, {
+      project: proj,
+      dateOut: dOutRaw, dateReturn: src.dateReturn || src.returnDate || '',
+      dateOutKey: dOutKey, staff: src.staff || '', vehicle: src.vehicle || '', kind,
+    });
+  };
+  (outItems || []).forEach(o => push(o, 'out'));
+  (reservations || []).forEach(r => push(r, 'res'));
+  const items = [...byKey.values()].sort((a,b) => {
+    const ka = a.dateOutKey || '', kb = b.dateOutKey || '';
+    return ka.localeCompare(kb);
+  });
+  document.getElementById('cal-day-title').textContent = `${y}年${m+1}月${d}日 の予定（${items.length}件）`;
+  const body = document.getElementById('cal-day-body');
+  if (!items.length) {
+    body.innerHTML = '<div style="color:var(--text2);padding:12px 0">この日に予定はありません。</div>';
+  } else {
+    body.innerHTML = items.map(it => {
+      const kindBadge = it.kind === 'out'
+        ? '<span class="badge s-danger" style="font-size:10px">持ち出し中</span>'
+        : '<span class="badge s-info" style="font-size:10px">予約</span>';
+      const vc = vehicleClass(it.vehicle);
+      const vs = vehicleChipStyle(it.vehicle);
+      const veh = it.vehicle ? `<span class="cal-event ${vc}" style="font-size:10px;padding:1px 6px;height:auto;line-height:1.2;${vs}">${escHtml(it.vehicle)}</span>` : '';
+      const dateRange = `${escHtml(fmtDateDisp(it.dateOut))} 〜 ${escHtml(fmtDateDisp(it.dateReturn))}`;
+      return `
+        <div style="padding:10px 4px;border-bottom:0.5px solid var(--border);cursor:pointer" onclick="closeModal('modal-cal-day');showProjectDetail('${it.project.replace(/'/g,"\\'")}','${it.dateOutKey}')">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${kindBadge}${veh}</div>
+          <div style="font-weight:700;font-size:14px">${escHtml(it.project)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${dateRange}${it.staff ? ' ・ 担当: ' + escHtml(it.staff) : ''}</div>
+        </div>`;
+    }).join('');
+  }
+  openModal('modal-cal-day');
+}
+
 function renderDashboard() {
   const container = document.getElementById('dashboard-container');
   if (!container) return;
@@ -2026,26 +2085,28 @@ function renderTopPage() {
   dayNames.forEach(d => { calCells += `<div class="cal-head">${d}</div>`; });
   // 日曜始まりカレンダー：firstDay(0=日..6=土)ぶんの空セルを詰める
   for (let i = 0; i < firstDay; i++) calCells += `<div class="cal-cell empty"></div>`;
+  const maxShow = 3;
   for (let d = 1; d <= daysInMonth; d++) {
     const key = year + '-' + (month+1) + '-' + d;
     const events = dateMap[key] || [];
     const dowIdx = new Date(year, month, d).getDay();
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-    // 全件表示（5件以上あってもセルが縦に伸びるので途切れない）
-    const eventDots = events.map(function(ev) {
+    const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
+    const eventDots = events.slice(0, maxShow).map(function(ev) {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
-      const rawLabel = proj.length > 12 ? proj.slice(0,12)+'…' : proj;
+      const rawLabel = proj.length > 10 ? proj.slice(0,10)+'…' : proj;
       const showLabel = (ev.span !== 'mid');
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
       const spanClass = ev.span ? 'cal-span-' + ev.span : '';
-      const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
       return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
     }).join('');
+    const overflow = events.length > maxShow
+      ? `<div class="cal-more" onclick="openCalDayModal('${_dk}',event)">+${events.length - maxShow}件</div>` : '';
     const dowCls = dowIdx === 0 ? ' sun' : (dowIdx === 6 ? ' sat' : '');
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}</div></div>`;
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}${overflow}</div></div>`;
   }
 
   calContainer.innerHTML = `
