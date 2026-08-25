@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v47';
+const APP_VERSION = 'v48';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -215,11 +215,9 @@ function vehicleChipStyle(v) {
   return `background:linear-gradient(90deg, ${stops});color:${VEHICLE_COLORS[kinds[0]].fg};`;
 }
 
-// 現場名に [貸出] [東京] が入っていたら貸出バッジを返す
+// 貸出機能は一旦停止：バッジは表示しない
 function loanBadge(projectName) {
-  return /\[(貸出|東京|LOAN|loan)\]/i.test(String(projectName||''))
-    ? '<span style="display:inline-block;background:#9C27B0;color:#fff;font-size:10px;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:600">🚚 貸出</span>'
-    : '';
+  return '';
 }
 
 function render() {
