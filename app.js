@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v49';
+const APP_VERSION = 'v50';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -569,13 +569,14 @@ function _renderHistoryInner(container) {
           h.action==='持ち出し中'?'s-out':'s-in';
         const actionLabel = h.action==='持ち出し中' ? 'OUT' : h.action;
         const makerLabel = (h.kind === '[レンタル]' && h.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(h.maker)}）</span>` : '';
+        // 日付・返却予定は案件ヘッダーにまとめて出すので、各機材行からは省く（返却予定以外の備考は残す）
+        const noteText = String(h.note||'').replace(/返却予定[:：].*/s, '').trim();
         return `
           <div class="proj-item-row">
-            <span style="font-size:11px;color:var(--text2);min-width:120px">${h.date}</span>
             <span class="proj-item-name">${escHtml(String(h.model||''))}${makerLabel}</span>
             <span class="proj-item-qty">${(h.qty|0) > 0 ? '×'+(h.qty|0) : ''}</span>
             <span class="badge ${cls}" style="font-size:10px">${actionLabel}</span>
-            <span style="font-size:11px;color:var(--text2)">${escHtml(h.note||'')}</span>
+            ${noteText ? `<span style="font-size:11px;color:var(--text2)">${escHtml(noteText)}</span>` : ''}
           </div>`;
       };
       // 種別で先に振り分け（履歴シートのkind列を優先、無ければ在庫マスター逆引き）
@@ -621,12 +622,31 @@ function _renderHistoryInner(container) {
         itemRows += `<div class="pd-cat-head">その他</div>`;
         others.forEach(h => itemRows += makeRow(h));
       }
+      // 案件の日付（持ち出し日〜返却予定）を算出してヘッダーに表示（全機材共通なので1回だけ）
+      let outD = null, retD = null, anyD = null;
+      g.items.forEach(h => {
+        const d = new Date(h.date);
+        if (!isNaN(d)) {
+          if (!anyD || d < anyD) anyD = d;
+          if ((h.action==='OUT' || h.action==='持ち出し中') && (!outD || d < outD)) outD = d;
+        }
+        const mm = String(h.note||'').match(/返却予定[:：]\s*(.+)/);
+        if (mm) { const rd = new Date(mm[1]); if (!isNaN(rd) && (!retD || rd > retD)) retD = rd; }
+      });
+      const startD = outD || anyD;
+      const _wd = '日月火水木金土';
+      const fmtD = d => d ? `${d.getMonth()+1}/${d.getDate()}(${_wd[d.getDay()]})` : '';
+      let dateLabel = '';
+      if (startD && retD && retD > startD) dateLabel = `${fmtD(startD)}〜${fmtD(retD)}`;
+      else if (startD) dateLabel = fmtD(startD);
+      const dateChip = dateLabel ? `<span class="proj-group-date">${dateLabel}</span>` : '';
       return `
         <div class="proj-group" style="margin:6px 0 0 0">
           <div class="proj-group-head" onclick="toggleGroup(this)" style="background:var(--bg)">
             <div class="proj-group-left">
               <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
               <span class="proj-group-name" style="font-size:13px">${project}${loanBadge(project)}</span>
+              ${dateChip}
               <span class="proj-group-meta">${g.staff||''}</span>
             </div>
             <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">

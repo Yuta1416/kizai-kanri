@@ -363,6 +363,7 @@ tr:hover td { background: var(--bg3); }
 .proj-chevron { font-size: 16px; color: var(--text2); transition: transform 0.2s; }
 .proj-group-name { font-size: 14px; font-weight: 700; color: var(--text); }
 .proj-group-meta { font-size: 12px; color: var(--text2); }
+.proj-group-date { font-size: 11px; font-weight: 600; color: var(--info-text, #7aa2f7); background: color-mix(in srgb, var(--info-text, #7aa2f7) 14%, transparent); padding: 1px 8px; border-radius: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .proj-count { font-size: 12px; color: var(--text2); font-weight: 500; }
 .btn-bulk-return {
   background: var(--primary); color: #fff;
