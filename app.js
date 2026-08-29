@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v48';
+const APP_VERSION = 'v49';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -218,6 +218,45 @@ function vehicleChipStyle(v) {
 // 貸出機能は一旦停止：バッジは表示しない
 function loanBadge(projectName) {
   return '';
+}
+
+// 日本の祝日を算出（ハッピーマンデー・春分/秋分・振替休日・国民の休日に対応）。年ごとにキャッシュ。
+const _jpHolCache = {};
+function jpHolidaySet(year) {
+  if (_jpHolCache[year]) return _jpHolCache[year];
+  const H = new Set();
+  const key = (m,d) => m + '-' + d;
+  const add = (m,d) => H.add(key(m,d));
+  add(1,1); add(2,11); add(2,23); add(4,29); add(5,3); add(5,4); add(5,5);
+  add(8,11); add(11,3); add(11,23);
+  const nthMon = (month, n) => {
+    const first = new Date(year, month-1, 1).getDay(); // 0=日
+    const firstMon = 1 + ((8 - first) % 7);            // その月の第1月曜の日
+    return firstMon + (n-1)*7;
+  };
+  add(1, nthMon(1,2));   // 成人の日
+  add(7, nthMon(7,3));   // 海の日
+  add(9, nthMon(9,3));   // 敬老の日
+  add(10, nthMon(10,2)); // スポーツの日
+  const shunbun = Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4)); // 春分の日
+  const shubun  = Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4)); // 秋分の日
+  add(3, shunbun); add(9, shubun);
+  const keiro = nthMon(9,3);
+  if (shubun - keiro === 2) add(9, keiro+1); // 国民の休日（敬老の日と秋分の日に挟まれた日）
+  // 振替休日：日曜が祝日ならその後の非祝日を振替休日に
+  Array.from(H).forEach(k => {
+    const [m,d] = k.split('-').map(Number);
+    if (new Date(year, m-1, d).getDay() === 0) {
+      let nx = new Date(year, m-1, d+1);
+      while (H.has(key(nx.getMonth()+1, nx.getDate()))) nx.setDate(nx.getDate()+1);
+      H.add(key(nx.getMonth()+1, nx.getDate()));
+    }
+  });
+  _jpHolCache[year] = H;
+  return H;
+}
+function isJpHoliday(year, month1, day) { // month1 は 1始まり
+  return jpHolidaySet(year).has(month1 + '-' + day);
 }
 
 function render() {
@@ -1775,7 +1814,10 @@ function renderDashboard() {
       return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '">' + label + '</div>';
     }).join('');
     const overflow = events.length > maxShow ? `<div class="cal-more">+${events.length - maxShow}</div>` : '';
-    calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}">
+    const dowIdx = new Date(year, month, d).getDay();
+    const isHol = isJpHoliday(year, month+1, d);
+    const dowCls = (isHol || dowIdx === 0) ? ' sun' : (dowIdx === 6 ? ' sat' : '');
+    calCells += `<div class="cal-cell${isToday ? ' today' : ''}${events.length ? ' has-event' : ''}${dowCls}${isHol?' holiday':''}">
       <span class="cal-day"><span class="cal-day-num">${d}</span></span>
       ${eventDots}${overflow}
     </div>`;
@@ -2103,8 +2145,9 @@ function renderTopPage() {
     }).join('');
     const overflow = events.length > maxShow
       ? `<div class="cal-more" onclick="openCalDayModal('${_dk}',event)">+${events.length - maxShow}件</div>` : '';
-    const dowCls = dowIdx === 0 ? ' sun' : (dowIdx === 6 ? ' sat' : '');
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}${overflow}</div></div>`;
+    const isHol = isJpHoliday(year, month+1, d);
+    const dowCls = (isHol || dowIdx === 0) ? ' sun' : (dowIdx === 6 ? ' sat' : '');
+    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}${isHol?' holiday':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}${overflow}</div></div>`;
   }
 
   calContainer.innerHTML = `
