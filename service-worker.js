@@ -1,6 +1,6 @@
 // ★デプロイのたびに必ずこの版番号を上げる（新SW検知→アプリに「更新」バナーが出る仕組み）
 //   app.js の APP_VERSION も同じ値に揃える
-const CACHE_NAME = 'kizai-cache-v50';
+const CACHE_NAME = 'kizai-cache-v51';
 
 // PWA用にアイコン等だけキャッシュ（アプリ本体は一切キャッシュしない＝常に最新）
 const CORE_ASSETS = ['/manifest.json', '/icon-192.png', '/icon-512.png'];

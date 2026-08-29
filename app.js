@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v50';
+const APP_VERSION = 'v51';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -651,6 +651,7 @@ function _renderHistoryInner(container) {
             </div>
             <div class="proj-group-right" style="display:flex;align-items:center;gap:8px">
               <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();downloadHistoryPickupList('${project.replace(/'/g,"\\'")}')"><i class="ti ti-file-download"></i> リストDL</button>
+              <button class="btn" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();triggerReingest('${project.replace(/'/g,"\\'")}')" title="修正版の荷だし表を投げ直してこの案件を上書き更新"><i class="ti ti-refresh"></i> 投げ直し</button>
             </div>
           </div>
           <div class="proj-group-body" style="display:none">${itemRows}</div>
@@ -676,6 +677,38 @@ function _renderHistoryInner(container) {
 function downloadHistoryPickupList(project, dateKey) {
   // Dropboxの持ち出しリスト現物（受注書コピー＋転記済み）をダウンロード
   downloadPickupList(project, dateKey || '');
+}
+
+// 履歴からの「修正版の荷だし表 投げ直し」：この案件を上書き更新
+let _reingestProject = '';
+function triggerReingest(project) {
+  _reingestProject = project || '';
+  const inp = document.getElementById('reingest-file-input');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+function reingestUploadFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const project = _reingestProject;
+  if (!project) { alert('対象の案件が不明です。もう一度お試しください。'); return; }
+  if (!/\.(xlsx|xls)$/i.test(file.name)) { alert('xlsx / xls ファイルを選んでください'); return; }
+  if (!confirm(`「${project}」を、選んだ荷だし表「${file.name}」の内容で上書き更新します。\n\n・この案件の現在の持ち出し/予約はいったん解除（在庫を戻し）\n・荷だし表の内容で登録し直し\n・持ち出しリストも作り直します\n※搬入日は変えずに使ってください（変えると別案件になります）。\n\nよろしいですか？`)) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const b64 = String(reader.result).split(',')[1] || '';
+    const payload = { filename: file.name, contentB64: b64, origProject: project };
+    const body = JSON.stringify({ action: 'reingest_edit', data: JSON.stringify(payload) });
+    fetch(GAS_API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body
+    }).catch(err => console.warn('[reingest_edit]送信警告:', err));
+    alert('投げ直しました。30〜60秒ほどで反映され、LINE/Slackに結果が通知されます。画面は自動で更新されます。\n※在庫不足などで失敗した場合も通知で分かります。');
+    setTimeout(() => { try { reloadData(); } catch(_){} }, 40000);
+    setTimeout(() => { try { reloadData(); } catch(_){} }, 75000);
+  };
+  reader.onerror = () => alert('ファイルの読み込みに失敗しました');
+  reader.readAsDataURL(file);
 }
 
 function switchTab(tab, el) {
