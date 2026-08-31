@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v53';
+const APP_VERSION = 'v54';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -983,6 +983,7 @@ function openAddModal() {
   ['add-cat','add-maker','add-model','add-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('add-qty').value=1;
   catSel.value=''; makerSel.value='';
+  const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 赤枠リセット
   openModal('modal-add');
 }
 // 在庫一覧から既存機材を編集（追加モーダルを流用）
@@ -999,10 +1000,27 @@ function openEditItem(idx) {
   document.getElementById('add-model').value = item.model||'';
   document.getElementById('add-qty').value = item.total||0;
   document.getElementById('add-note').value = item.note||'';
+  const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 自分自身は重複扱いしない
 }
 function syncCombo(selId, inputId) {
   const val=document.getElementById(selId).value;
   if(val) document.getElementById(inputId).value=val;
+}
+// 同じ型番が既に在庫マスターにあるか（追加＝重複防止用）。編集中は自分自身を除外。トリム＋大文字小文字無視。
+function addModelDuplicate(model) {
+  const m = String(model||'').trim().toLowerCase();
+  if (!m) return null;
+  return (inv||[]).find(i => {
+    if (addEditRow && i.row === addEditRow) return false;   // 編集中の自分は対象外
+    return String(i.model||'').trim().toLowerCase() === m;
+  }) || null;
+}
+// 型番入力欄を、既存機材と重複する場合だけ赤枠に（入力の都度）
+function addCheckDup(el) {
+  const dup = addModelDuplicate(el.value);
+  el.style.borderColor = dup ? 'var(--danger,#dc2626)' : '';
+  el.style.background  = dup ? 'color-mix(in srgb,var(--danger,#dc2626) 8%,transparent)' : '';
+  el.title = dup ? `「${dup.model}」は既に登録済みです（総数${dup.total}）。数を変えたい時は既存機材の「編集」から変更してください` : '';
 }
 function doAdd() {
   const cat=document.getElementById('add-cat').value.trim();
@@ -1014,6 +1032,9 @@ function doAdd() {
 
   // ===== 編集モード：既存行を更新してスプレッドシートに保存 =====
   if (addEditRow) {
+    // 型番を他の既存機材と同じに変えようとしたらブロック（重複防止）
+    const dupE = addModelDuplicate(model);
+    if (dupE) { alert(`「${dupE.model}」は別の機材として既に登録済みです。\n型番が他の機材と重複しないようにしてください。`); return; }
     const data = { row: addEditRow, cat: cat||'その他', maker: maker||'—', model, note, total, origModel: addEditOrigModel };
     const item = inv.find(i => i.row === addEditRow);
     if (item) { item.cat=cat||'その他'; item.maker=maker||'—'; item.model=model; item.note=note; item.total=total; item.stock=Math.max(0,total-(item.out||0)); }
@@ -1025,18 +1046,10 @@ function doAdd() {
     return;
   }
 
-  // ===== 追加モード：同じ型番があれば総数を増やす（既存行の編集）=====
-  const existing = inv.find(i => i.model === model);
+  // ===== 追加モード：同じ型番があればエラーでブロック（重複追加を防止）=====
+  const existing = addModelDuplicate(model);
   if (existing) {
-    const newTotal = (existing.total||0) + total;
-    if (!confirm(`「${model}」は既に登録済みです。\n在庫数を${existing.total}→${newTotal}に増やしますか？`)) return;
-    const data = { row: existing.row, cat: existing.cat, maker: existing.maker, model, note: existing.note||'', total: newTotal, origModel: model };
-    existing.total = newTotal; existing.stock = Math.max(0, newTotal-(existing.out||0));
-    closeModal('modal-add'); render();
-    gasJsonp({ action:'edit_inventory_item', data: JSON.stringify(data) }, json => {
-      if (json.status==='error') alert('⚠️ 保存できませんでした: ' + (json.message||''));
-      setTimeout(()=>{ try{ reloadData(); }catch(_){} }, 1200);
-    });
+    alert(`「${existing.model}」は既に登録済みです（総数 ${existing.total}）。\n\n同じ機材は二重に追加できません。数を変えたい場合は、その機材の「編集」から総在庫数を変更してください。`);
     return;
   }
 

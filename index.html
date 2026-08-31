@@ -224,7 +224,7 @@
         <input id="add-maker" placeholder="または直接入力">
       </div>
     </div>
-    <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58"></div>
+    <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58" oninput="addCheckDup(this)"></div>
     <div class="fr"><label>総在庫数</label><input type="number" id="add-qty" min="1" value="1"></div>
     <div class="fr"><label>備考</label><input id="add-note" placeholder="任意"></div>
     <div class="modal-actions">
