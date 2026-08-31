@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v52';
+const APP_VERSION = 'v53';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1300,6 +1300,25 @@ function openEditProject() {
   renderEpItems();
   openModal('modal-edit-project');
 }
+// 自社(own)機材が在庫マスターに存在するか（バックエンド findMasterIndex と同じ照合＝完全一致→部分一致）
+function epOwnInInventory(name) {
+  name = String(name || '').trim();
+  if (!name) return false;
+  const list = inv || [];
+  if (list.some(x => String(x.model || '').trim() === name)) return true;   // 完全一致
+  return list.some(x => {                                                   // 部分一致（どちらかが含む）
+    const kw = String(x.model || '').trim();
+    return kw && (kw.indexOf(name) !== -1 || name.indexOf(kw) !== -1);
+  });
+}
+// 型番入力欄を、自社在庫に無い場合だけ赤枠に（入力の都度・再描画なしで反映）
+function epMarkNameValidity(el, i) {
+  const it = epItemsState[i];
+  const bad = it && it.kind === 'own' && el.value.trim() && !epOwnInInventory(el.value);
+  el.style.borderColor = bad ? 'var(--danger, #dc2626)' : '';
+  el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
+  el.title = bad ? '自社在庫にない機材です。候補から選ぶか、レンタル/フリーで追加してください' : '';
+}
 function renderEpItems() {
   const kindLabel = { own:'自社', rental:'レンタル', free:'フリー' };
   const invList = inv || [];
@@ -1322,11 +1341,13 @@ function renderEpItems() {
       ? `<datalist id="${modelListId}">${rowModels.map(m => `<option value="${escHtml(m)}"></option>`).join('')}</datalist>` : '';
     const nameListAttr  = it.kind === 'own' ? `list="${modelListId}"` : '';
     const makerListAttr = (showMaker && it.kind === 'own') ? 'list="ep-maker-datalist"' : '';
+    const ownInvalid = it.kind === 'own' && it.itemName && it.itemName.trim() && !epOwnInInventory(it.itemName);
+    const invalidStyle = ownInvalid ? ' style="border-color:var(--danger,#dc2626);background:color-mix(in srgb,var(--danger,#dc2626) 8%,transparent)" title="自社在庫にない機材です。候補から選ぶか、レンタル/フリーで追加してください"' : '';
     return `<div class="ep-item-row" data-i="${i}">
       ${modelDatalist}
       <span class="ep-badge ep-${it.kind}">${kindLabel[it.kind]||it.kind}</span>
       ${showMaker ? `<input class="ep-in-maker" ${makerListAttr} placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value" onchange="epOnMakerChange(${i},this.value)">` : ''}
-      <input class="ep-in-name" ${nameListAttr} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value" onchange="epOnNameChange(${i},this.value)">
+      <input class="ep-in-name" ${nameListAttr}${invalidStyle} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value;epMarkNameValidity(this,${i})" onchange="epOnNameChange(${i},this.value)">
       <input class="ep-in-qty" type="number" min="0" value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0">
       <button class="btn ep-del" onclick="epDeleteItem(${i})"><i class="ti ti-trash"></i></button>
     </div>`;
@@ -1369,6 +1390,12 @@ function saveEditProject() {
   };
   const items = epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && ((it.qty|0) > 0 || it.kind === 'rental' || it.kind === 'free'));
   if (!meta.project) { alert('案件名は必須です'); return; }
+  // 自社(own)機材で在庫マスターに無いものはブロック（在庫外はレンタル/フリーで追加してもらう）
+  const badOwn = items.filter(it => it.kind === 'own' && !epOwnInInventory(it.itemName));
+  if (badOwn.length) {
+    alert('次の機材は自社在庫にありません。候補から選ぶか、レンタル／フリーに変更してください：\n\n・' + badOwn.map(it => it.itemName.trim()).join('\n・'));
+    return;
+  }
   const action = epCreateMode ? 'create_project' : 'edit_project';
   const payload = epCreateMode
     ? { meta, items }
