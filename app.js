@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v52';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2502,9 +2502,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 function showUpdateBanner(worker) {
+  // 自動更新方式に変更：新SWはinstallで即skipWaiting→activate→controllerchangeで自動リロードするため
+  // バナーは表示しない（待機状態が残らずループしない）。互換のため関数自体は残す。
   window._pendingSW = worker;
-  const b = document.getElementById('update-banner');
-  if (b) b.style.display = 'flex';
 }
 function applyUpdate() {
   const w = window._pendingSW;
