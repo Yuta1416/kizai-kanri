@@ -209,22 +209,24 @@
     <div class="fr">
       <label>カテゴリ</label>
       <div class="combo-wrap">
-        <select id="add-cat-sel" onchange="syncCombo('add-cat-sel','add-cat')">
+        <select id="add-cat-sel" onchange="syncCombo('add-cat-sel','add-cat');renderSug('cat',document.getElementById('add-cat').value)">
           <option value="">— 新規入力 —</option>
         </select>
-        <input id="add-cat" placeholder="または直接入力">
+        <input id="add-cat" placeholder="または直接入力" oninput="renderSug('cat',this.value)">
       </div>
+      <div id="add-cat-sug" class="add-sug"></div>
     </div>
     <div class="fr">
       <label>メーカー</label>
       <div class="combo-wrap">
-        <select id="add-maker-sel" onchange="syncCombo('add-maker-sel','add-maker')">
+        <select id="add-maker-sel" onchange="syncCombo('add-maker-sel','add-maker');renderSug('maker',document.getElementById('add-maker').value)">
           <option value="">— 新規入力 —</option>
         </select>
-        <input id="add-maker" placeholder="または直接入力">
+        <input id="add-maker" placeholder="または直接入力" oninput="renderSug('maker',this.value)">
       </div>
+      <div id="add-maker-sug" class="add-sug"></div>
     </div>
-    <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58" oninput="addCheckDup(this)"></div>
+    <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58" oninput="addCheckDup(this);renderSug('model',this.value)"><div id="add-model-sug" class="add-sug"></div></div>
     <div class="fr"><label>総在庫数</label><input type="number" id="add-qty" min="1" value="1"></div>
     <div class="fr"><label>備考</label><input id="add-note" placeholder="任意"></div>
     <div class="modal-actions">

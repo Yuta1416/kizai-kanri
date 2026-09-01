@@ -275,6 +275,12 @@ tr:hover td { background: var(--bg3); }
   box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
 }
 .fr textarea { height: 78px; resize: vertical; }
+/* 「これかも？」候補チップ */
+.add-sug { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.add-sug:empty { margin: 0; }
+.add-sug-label { font-size: 11px; color: var(--text2); }
+.add-sug-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); cursor: pointer; }
+.add-sug-chip:hover { border-color: var(--primary); color: var(--primary); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1.2rem; }
 
 /* ===== カード型レイアウト ===== */

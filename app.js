@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v54';
+const APP_VERSION = 'v55';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -984,6 +984,7 @@ function openAddModal() {
   document.getElementById('add-qty').value=1;
   catSel.value=''; makerSel.value='';
   const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 赤枠リセット
+  clearAddSug();  // 「これかも？」候補もクリア
   openModal('modal-add');
 }
 // 在庫一覧から既存機材を編集（追加モーダルを流用）
@@ -1001,6 +1002,7 @@ function openEditItem(idx) {
   document.getElementById('add-qty').value = item.total||0;
   document.getElementById('add-note').value = item.note||'';
   const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 自分自身は重複扱いしない
+  clearAddSug();
 }
 function syncCombo(selId, inputId) {
   const val=document.getElementById(selId).value;
@@ -1021,6 +1023,65 @@ function addCheckDup(el) {
   el.style.borderColor = dup ? 'var(--danger,#dc2626)' : '';
   el.style.background  = dup ? 'color-mix(in srgb,var(--danger,#dc2626) 8%,transparent)' : '';
   el.title = dup ? `「${dup.model}」は既に登録済みです（総数${dup.total}）。数を変えたい時は既存機材の「編集」から変更してください` : '';
+}
+// ===== 「これかも？」似た既存値の候補（カテゴリ/メーカー/型番の表記ゆれ・打ち間違い対策）=====
+function _normMatch(s) {
+  return String(s||'').trim().toLowerCase()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)) // 全角英数→半角
+    .replace(/[\s\-−ー_・.,／/()（）]/g, '');   // 空白・記号を除去して比較
+}
+function _lev(a, b) {   // レーベンシュタイン距離（打ち間違い検出用）
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({length:n+1}, (_,j)=>j), cur = new Array(n+1);
+  for (let i=1;i<=m;i++) {
+    cur[0] = i;
+    for (let j=1;j<=n;j++) cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1]===b[j-1]?0:1));
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+function similarCandidates(input, pool, max) {
+  max = max || 6;
+  const rawLower = String(input||'').trim().toLowerCase();
+  const q = _normMatch(input);
+  if (q.length < 1) return [];
+  const seen = new Set(), scored = [];
+  for (const item of pool) {
+    const v = String(item||'').trim();
+    if (!v || v.toLowerCase() === rawLower) continue;   // 空 or 入力そのもの → 除外
+    const nv = _normMatch(v);
+    if (!nv || seen.has(nv)) continue; seen.add(nv);
+    let score = -1;
+    if (nv === q) score = 200;                                                            // 表記ゆれ（記号/空白/全半角の違いだけ）＝最有力
+    else if (q.length >= 3 && nv.length >= 2 && q.includes(nv)) score = 150 - (q.length - nv.length);  // 入力が既存を丸ごと含む
+    else if (q.length >= 3 && nv.startsWith(q)) score = 120 - (nv.length - q.length);                  // 前方一致
+    else if (q.length >= 3 && nv.includes(q) && (nv.length - q.length) <= Math.max(3, q.length)) score = 90 - (nv.length - q.length); // 部分一致（長さ差が小さい時だけ）
+    else if (q.length >= 3) { const d = _lev(nv, q); const tol = Math.max(1, Math.floor(Math.max(nv.length, q.length) / 3)); if (d <= tol && Math.abs(nv.length - q.length) <= 2) score = 60 - d * 10; }  // 打ち間違い（長さに応じた許容）
+    if (score > 0) scored.push({ v, score });
+  }
+  scored.sort((a,b)=>b.score-a.score);
+  return scored.slice(0, max).map(x=>x.v);
+}
+function renderSug(field, val) {
+  const cont = document.getElementById('add-'+field+'-sug');
+  if (!cont) return;
+  const pool = field==='cat'   ? (inv||[]).map(i=>i.cat)
+             : field==='maker' ? (inv||[]).map(i=>i.maker).filter(m=>m && m!=='—')
+             :                    (inv||[]).map(i=>i.model);
+  const cands = similarCandidates(val, pool, 6);
+  cont.innerHTML = cands.length
+    ? '<span class="add-sug-label">これかも？</span>' + cands.map(c =>
+        `<button type="button" class="add-sug-chip" data-v="${escHtml(c)}" onclick="pickSug('${field}',this.dataset.v)">${escHtml(c)}</button>`).join('')
+    : '';
+}
+function pickSug(field, val) {
+  const id = field==='cat' ? 'add-cat' : field==='maker' ? 'add-maker' : 'add-model';
+  const el = document.getElementById(id);
+  if (el) { el.value = val; el.dispatchEvent(new Event('input')); el.focus(); }
+}
+function clearAddSug() {
+  ['cat','maker','model'].forEach(f => { const c=document.getElementById('add-'+f+'-sug'); if(c) c.innerHTML=''; });
 }
 function doAdd() {
   const cat=document.getElementById('add-cat').value.trim();
