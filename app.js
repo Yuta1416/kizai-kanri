@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v55';
+const APP_VERSION = 'v56';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1112,6 +1112,12 @@ function doAdd() {
   if (existing) {
     alert(`「${existing.model}」は既に登録済みです（総数 ${existing.total}）。\n\n同じ機材は二重に追加できません。数を変えたい場合は、その機材の「編集」から総在庫数を変更してください。`);
     return;
+  }
+
+  // ===== 似た機材が既にある場合は確認（打ち方違い・表記ゆれの二重登録を防止）=====
+  const _similar = similarCandidates(model, (inv||[]).map(i=>i.model), 5);
+  if (_similar.length) {
+    if (!confirm(`似た機材が既に登録されています：\n・${_similar.join('\n・')}\n\n「${model}」はこれらとは別の機材として追加しますか？\n\n［OK］別物として追加する\n［キャンセル］追加しない（同じ物なら、その既存機材の「編集」から数を増やしてください）`)) return;
   }
 
   // ===== 追加モード：新規行を作成 =====
