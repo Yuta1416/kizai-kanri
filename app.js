@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v60';
+const APP_VERSION = 'v61';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -720,6 +720,7 @@ function switchTab(tab, el) {
     if (v) v.style.display = t===tab ? 'block' : 'none';
   });
   render();
+  if (tab === 'history') fetchHistory(); // 履歴はタブを開いた時だけ取得（初回表示を高速化）
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
   if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
   // ビュー切替時は最上部へスクロール（スマホで見やすく）
@@ -1728,27 +1729,56 @@ function applyData(json) {
   renderConflictBanner();
   if (currentTab === 'dashboard') renderDashboard();
 
-  if (json.history && json.history.length > 0) {
-    const gasHistory = json.history.map(function(h) {
-      return {
-        date:     h.date     || '',
-        project:  h.project  || '',
-        staff:    h.staff    || '',
-        model:    h.model    || '',
-        qty:      parseInt(h.qty) || 0,
-        action:   h.action   || 'OUT',
-        note:     h.note     || '',
-        category: h.category || '',
-        kind:     h.kind     || '',
-        maker:    h.maker    || '',
-      };
-    });
-    const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
-    const localOnly = history.filter(function(h) {
-      return !existingModels.has(h.date + h.model);
-    });
-    history = gasHistory.concat(localOnly);
+  // action=all は履歴を返さない（初回表示の高速化）。互換のため来ていればマージ。
+  if (json.history && json.history.length > 0) mergeGasHistory(json.history);
+}
+
+// GAS履歴（action=history）を現在のローカルOUT履歴とマージして history に反映
+function mergeGasHistory(arr) {
+  const gasHistory = (arr || []).map(function(h) {
+    return {
+      date:     h.date     || '',
+      project:  h.project  || '',
+      staff:    h.staff    || '',
+      model:    h.model    || '',
+      qty:      parseInt(h.qty) || 0,
+      action:   h.action   || 'OUT',
+      note:     h.note     || '',
+      category: h.category || '',
+      kind:     h.kind     || '',
+      maker:    h.maker    || '',
+    };
+  });
+  const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
+  const localOnly = history.filter(function(h) { return !existingModels.has(h.date + h.model); });
+  history = gasHistory.concat(localOnly);
+}
+
+// 履歴タブを開いた時だけGASから履歴を取得（action=all から分離）
+let _historyFetching = false;
+let _historyLoaded = false;
+function fetchHistory() {
+  if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') { renderHistory(); return; }
+  if (_historyFetching) return;
+  _historyFetching = true;
+  // まだ実履歴が無い（ローカルOUTのみ）の初回はローディング表示。既に読み込み済みなら裏で更新。
+  const cont = document.getElementById('hist-container');
+  if (cont && !_historyLoaded) {
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">履歴を読み込み中...</div>';
   }
+  const cb = 'histCb_' + Date.now();
+  window[cb] = function(json) {
+    delete window[cb];
+    const el = document.getElementById('jsonp_' + cb); if (el) el.remove();
+    _historyFetching = false;
+    if (json && json.status === 'ok' && json.history) { mergeGasHistory(json.history); _historyLoaded = true; }
+    if (currentTab === 'history') renderHistory();
+  };
+  const s = document.createElement('script');
+  s.id = 'jsonp_' + cb;
+  s.src = GAS_API_URL + '?action=history&callback=' + cb;
+  s.onerror = function() { delete window[cb]; s.remove(); _historyFetching = false; if (currentTab === 'history') renderHistory(); };
+  document.body.appendChild(s);
 }
 
 function fetchFromSpreadsheet() {
@@ -1770,6 +1800,7 @@ function fetchFromSpreadsheet() {
     applyData(json);
     render();
     if (currentTab === 'dashboard') renderDashboard();
+    if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
     showLoading(false);
   };
 
