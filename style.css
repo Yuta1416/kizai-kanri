@@ -81,6 +81,8 @@ body {
 }
 .topbar-left { display: flex; align-items: center; gap: 10px; }
 .topbar-left i { font-size: 22px; color: var(--primary); }
+/* 拠点識別バッジ（大阪=大 / 東京=東）。色は各index.htmlでインライン指定 */
+.site-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; color: #fff; font-weight: 700; font-size: 18px; line-height: 1; flex-shrink: 0; box-shadow: var(--shadow-sm); }
 h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
 .topbar-right { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -621,6 +623,7 @@ tr:hover td { background: var(--bg3); }
   .topbar-left { flex-shrink: 0; }
   .topbar-left h1 { font-size: 15px; white-space: nowrap; }
   .topbar-left i { font-size: 19px; }
+  .site-badge { width: 28px; height: 28px; font-size: 16px; border-radius: 8px; }
   .topbar-right { gap: 6px; flex-wrap: nowrap; }
   /* font-size:0 でテキストノードを消し、iだけ復活 */
   .topbar-right .btn { font-size: 0; padding: 8px 10px; gap: 0; }
