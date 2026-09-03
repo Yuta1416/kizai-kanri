@@ -124,7 +124,7 @@ h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
 }
 .stat-icon i { font-size: 20px; }
 .stat-body { min-width: 0; flex: 1; }
-.stat-label { font-size: 11px; color: var(--text2); margin-bottom: 4px; font-weight: 600; letter-spacing: 0.02em; }
+.stat-label { font-size: 11px; color: var(--text2); margin-bottom: 4px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-val { font-size: 26px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.5px; line-height: 1.1; }
 /* アクセント色 */
 .stat-primary .stat-icon { background: var(--primary-bg); color: var(--primary); }
@@ -678,6 +678,15 @@ tr:hover td { background: var(--bg3); }
   .cal-cell { height: 72px; padding: 4px; }
   .cal-event { font-size: 10px; padding: 2px 5px; }
   .cal-events { gap: 2px; }
+}
+
+/* タブレット中間幅（721〜900px）：上部タブは残しつつ、5枚並びの統計が詰まって
+   ラベルが途中で改行される・カレンダー列が狭すぎて予定が切れる崩れを解消 */
+@media (min-width: 721px) and (max-width: 900px) {
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .top-layout { grid-template-columns: 1fr; }
+  .top-left { position: static; }
+  .dash-grid { grid-template-columns: 1fr; }
 }
 
 /* 案件編集モーダル */
