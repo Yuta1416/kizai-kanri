@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v63';
+const APP_VERSION = 'v64';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -341,6 +341,96 @@ const CAT_ICONS = {
   '台車':'ti-forklift','脚立':'ti-stairs','単管':'ti-line','その他資材':'ti-package',
 };
 
+// ===== 一括ステータス変更（選択モード）=====
+// カテゴリをまたいで複数選択→まとめて 修理中/レンタル中/長期不在 に。行番号ベースで確実保存。
+let selectMode = false;
+const selectedRows = new Set();
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  if (!selectMode) selectedRows.clear();
+  renderInventory();
+  updateBulkBar();
+}
+function toggleSelectItem(row) {
+  if (!row) return;
+  if (selectedRows.has(row)) selectedRows.delete(row); else selectedRows.add(row);
+  renderInventory();
+  updateBulkBar();
+}
+function clearSelection() {
+  selectMode = false; selectedRows.clear();
+  renderInventory(); updateBulkBar();
+}
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  if (!bar) return;
+  if (selectMode && selectedRows.size > 0) {
+    bar.style.display = 'flex';
+    const cnt = document.getElementById('bulk-count');
+    if (cnt) cnt.textContent = selectedRows.size + '件選択中';
+  } else {
+    bar.style.display = 'none';
+  }
+  // 選択ボタンの見た目
+  const btn = document.getElementById('select-btn');
+  if (btn) {
+    btn.classList.toggle('on', selectMode);
+    btn.innerHTML = selectMode
+      ? '<i class="ti ti-x" aria-hidden="true"></i> 選択終了'
+      : '<i class="ti ti-checkbox" aria-hidden="true"></i> 選択';
+  }
+}
+function applyBulkSpecial() {
+  const status = document.getElementById('bulk-status').value;
+  // 選択された行のうち、変更可能な数量(avail>0)があるものだけ対象
+  const targets = [];
+  const skipped = [];
+  selectedRows.forEach(row => {
+    const item = inv.find(i => i.row === row);
+    if (!item) return;
+    const av = avail(item);
+    if (av > 0) targets.push({ row: row, qty: av, item: item });
+    else skipped.push(item.model);
+  });
+  if (!targets.length) { alert('変更できる在庫がある機材が選択されていません。'); return; }
+  let msg = `選択した ${targets.length} 件を「${status}」にします。`;
+  if (skipped.length) msg += `\n（在庫0のため対象外: ${skipped.length}件）`;
+  if (!confirm(msg)) return;
+
+  // 楽観的にローカル反映
+  const now = new Date().toLocaleString('ja-JP');
+  targets.forEach(t => {
+    t.item.special += t.qty; t.item.status = status;
+    history.push({ date: now, project:'', staff:'', model: `${t.item.maker} ${t.item.model}`, qty: t.qty, action: status, note:'' });
+  });
+  clearSelection();
+  render();
+
+  // サーバーへ一括送信（行番号ベース＋ロック）
+  if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
+    const cbB = 'cb_' + Date.now();
+    const payload = targets.map(t => ({ row: t.row, qty: t.qty }));
+    const params = new URLSearchParams({
+      action: 'special_bulk',
+      status: status,
+      items: JSON.stringify(payload),
+      callback: cbB,
+    });
+    window[cbB] = function(json) {
+      delete window[cbB];
+      const el = document.getElementById('jsonp_' + cbB); if (el) el.remove();
+      if (!json || json.status !== 'ok') alert('一括変更の保存に失敗しました。再度お試しください。');
+      fetchFromSpreadsheet();
+    };
+    const script = document.createElement('script');
+    script.id = 'jsonp_' + cbB;
+    script.src = GAS_API_URL + '?' + params.toString();
+    script.onerror = function(){ delete window[cbB]; script.remove(); alert('通信エラー：一括変更を保存できませんでした。'); };
+    document.body.appendChild(script);
+  }
+}
+
 function renderInventory() {
   const srch = document.getElementById('srch').value.toLowerCase();
   const stF  = document.getElementById('stF').value;
@@ -364,9 +454,24 @@ function renderInventory() {
     const icon = CAT_ICONS[cat] || 'ti-package';
     const cards = items.map(item => {
       const idx = inv.indexOf(item), st = calcSt(item), av = avail(item);
-      const canOut = av>0 && !['修理中','レンタル中','長期不在'].includes(st);
-      const cls = st==='OUT'?'card-out':st==='PARTIAL'?'card-partial':'';
       const cntCls = st==='OUT'||av===0?'c-red':st==='PARTIAL'?'c-amber':'c-green';
+      if (selectMode) {
+        const on = selectedRows.has(item.row);
+        return `
+        <div class="item-card sel-card${on?' sel-on':''}" onclick="toggleSelectItem(${item.row||0})">
+          <div class="sel-check">${on?'<i class="ti ti-check" aria-hidden="true"></i>':''}</div>
+          <div class="item-card-info">
+            <div class="item-card-name">${escHtml(item.model)}</div>
+            <div class="item-card-maker">${escHtml(item.maker)}</div>
+            ${badge(st)}
+          </div>
+          <div class="item-card-right">
+            <div class="item-card-count ${cntCls}">${av}</div>
+            <div class="item-card-total">/ ${item.total}</div>
+          </div>
+        </div>`;
+      }
+      const cls = st==='OUT'?'card-out':st==='PARTIAL'?'card-partial':'';
       return `
         <div class="item-card ${cls}" onclick="openItemDetail(${idx})">
           <div class="item-card-icon"><i class="ti ${icon}" aria-hidden="true"></i></div>
@@ -724,7 +829,9 @@ function switchTab(tab, el) {
     const v = document.getElementById('view-'+t);
     if (v) v.style.display = t===tab ? 'block' : 'none';
   });
+  if (tab !== 'inventory' && selectMode) { selectMode = false; selectedRows.clear(); }
   render();
+  updateBulkBar();
   if (tab === 'history') fetchHistory(); // 履歴はタブを開いた時だけ取得（初回表示を高速化）
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
   if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
@@ -905,6 +1012,7 @@ function doSpecial() {
     const params = new URLSearchParams({
       action: 'special',
       model:  item.maker + ' ' + item.model,
+      row:    item.row || '',
       status: status,
       qty:    qty,
       note:   note || '',

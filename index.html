@@ -109,12 +109,25 @@
         <option value="OUT">OUT</option><option value="修理中">修理中</option>
         <option value="レンタル中">レンタル中</option><option value="長期不在">長期不在</option>
       </select>
+      <button class="btn" id="select-btn" onclick="toggleSelectMode()" style="white-space:nowrap"><i class="ti ti-checkbox" aria-hidden="true"></i> 選択</button>
       <button class="btn btn-primary" onclick="openAddModal()" style="white-space:nowrap"><i class="ti ti-plus" aria-hidden="true"></i> 機材追加</button>
     </div>
     <div class="inv-layout">
       <div class="cat-sidebar" id="cat-sidebar"></div>
       <div class="card-main" id="card-main"></div>
     </div>
+  </div>
+
+  <!-- 一括ステータス変更バー（選択モードで機材を選ぶと表示） -->
+  <div id="bulk-bar" style="display:none">
+    <span id="bulk-count" class="bulk-count">0件選択中</span>
+    <select id="bulk-status" class="bulk-status">
+      <option value="修理中">修理中</option>
+      <option value="レンタル中">レンタル中</option>
+      <option value="長期不在">長期不在</option>
+    </select>
+    <button class="btn btn-primary" onclick="applyBulkSpecial()"><i class="ti ti-check" aria-hidden="true"></i> 適用</button>
+    <button class="btn" onclick="clearSelection()">解除</button>
   </div>
 
   <div id="view-out" style="display:none">

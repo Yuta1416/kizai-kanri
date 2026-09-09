@@ -340,6 +340,37 @@ tr:hover td { background: var(--bg3); }
 }
 .item-card-icon i { font-size: 18px; color: var(--primary); }
 .item-card-info { flex: 1; min-width: 0; }
+
+/* 一括選択モード */
+.item-card.sel-card { border-style: dashed; }
+.item-card.sel-card.sel-on { border-color: var(--primary); border-style: solid; background: var(--primary-bg); }
+.sel-check {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--border2); color: var(--primary);
+}
+.item-card.sel-on .sel-check { border-color: var(--primary); background: var(--primary); color: #fff; }
+.sel-check i { font-size: 20px; }
+#select-btn.on { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-text); }
+
+/* 一括ステータス変更バー（画面下部固定・1行） */
+#bulk-bar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  z-index: 9000; width: calc(100% - 24px); max-width: 560px;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 14px; padding: 10px 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.45);
+}
+.bulk-count { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.bulk-status {
+  flex: 1; min-width: 60px;
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border2); background: var(--bg); color: var(--text);
+}
+#bulk-bar .btn { padding: 8px 12px; white-space: nowrap; font-size: 13px; }
 .item-card-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-card-maker { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .item-card-right { text-align: right; flex-shrink: 0; }
