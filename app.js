@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v65';
+const APP_VERSION = 'v66';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1545,6 +1545,76 @@ function epMarkNameValidity(el, i) {
   el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
   el.title = bad ? '自社在庫にない機材です。候補から選ぶか、レンタル/フリーで追加してください' : '';
 }
+// 名前から在庫マスターの機材を取得（epOwnInInventory と同じ照合）
+function epMatchInvItem(name) {
+  name = String(name || '').trim();
+  if (!name) return null;
+  const list = inv || [];
+  return list.find(x => String(x.model||'').trim() === name)
+      || list.find(x => { const kw=String(x.model||'').trim(); return kw && (kw.indexOf(name)!==-1 || name.indexOf(kw)!==-1); })
+      || null;
+}
+function _epNameMatch(a, b) {
+  a = String(a||'').trim(); b = String(b||'').trim();
+  return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
+}
+// 編集中の期間における、その機材の実質空き数
+//   = 総数 − 特殊(修理/レンタル/不在) − この期間に重なる他の持ち出し・予約のピーク使用数
+//   （編集中の案件自身の予約/持ち出しは除外）。日付未入力なら現在の空き(avail)。
+function epAvailFor(name) {
+  const item = epMatchInvItem(name);
+  if (!item) return Infinity; // 自社在庫に無い → 型番の赤枠側で扱う
+  const base = Math.max(0, (item.total||0) - (item.special||0));
+  const S = parseDate((document.getElementById('ep-dateout')||{}).value);
+  if (!S) return avail(item); // 搬入日未入力なら現在の空き数
+  const E = parseDate((document.getElementById('ep-dateret')||{}).value) || S;
+  const s0 = S.getTime(), e0 = E.getTime();
+  const FAR = new Date(2999,0,1).getTime();
+  const evs = [];
+  const addBk = (mname, qty, dOut, dRet, proj, dk) => {
+    if (!_epNameMatch(mname, item.model)) return;
+    if (proj === pdProject && (!pdDateKey || dk === pdDateKey)) return; // 編集中の案件自身は除外
+    const bs = parseDate(dOut); if (!bs) return;
+    const be = parseDate(dRet) || new Date(FAR);
+    const bsT = bs.getTime(), beT = be.getTime();
+    if (!(bsT <= e0 && s0 <= beT)) return; // 編集期間と重ならない
+    const q = parseInt(qty) || 0; if (q <= 0) return;
+    evs.push({ t: bsT, q: q }); evs.push({ t: beT, q: -q });
+  };
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date)));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut)));
+  evs.sort((a,b) => a.t - b.t);
+  let cur = 0, peak = 0, prevT = -Infinity;
+  for (const ev of evs) {
+    // 区間[prevT, ev.t)の使用数は cur。編集期間(s0,e0]と重なるならピーク更新
+    if (cur > peak && prevT < e0 && ev.t > s0) peak = cur;
+    cur += ev.q; prevT = ev.t;
+  }
+  return Math.max(0, base - peak);
+}
+// 数量が空きを超えていたら赤枠に（own のみ対象）
+function epMarkQtyValidity(el, i) {
+  const it = epItemsState[i];
+  if (!it || it.kind !== 'own' || !it.itemName || !epOwnInInventory(it.itemName)) {
+    el.style.borderColor=''; el.style.background=''; el.title=''; return false;
+  }
+  const max = epAvailFor(it.itemName);
+  const q = parseInt(el.value) || 0;
+  const bad = isFinite(max) && q > max;
+  el.style.borderColor = bad ? 'var(--danger, #dc2626)' : '';
+  el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
+  el.title = bad ? `在庫を超えています（この期間の空き: ${max}台）` : '';
+  if (isFinite(max)) el.max = max;
+  return bad;
+}
+// 全数量欄を再検証（日付変更時などに呼ぶ）
+function epRevalidateQty() {
+  document.querySelectorAll('#ep-items .ep-in-qty').forEach(el => {
+    const i = parseInt(el.getAttribute('data-i'));
+    if (!isNaN(i)) epMarkQtyValidity(el, i);
+  });
+}
+
 function renderEpItems() {
   const kindLabel = { own:'自社', rental:'レンタル', free:'フリー' };
   const invList = inv || [];
@@ -1569,12 +1639,17 @@ function renderEpItems() {
     const makerListAttr = (showMaker && it.kind === 'own') ? 'list="ep-maker-datalist"' : '';
     const ownInvalid = it.kind === 'own' && it.itemName && it.itemName.trim() && !epOwnInInventory(it.itemName);
     const invalidStyle = ownInvalid ? ' style="border-color:var(--danger,#dc2626);background:color-mix(in srgb,var(--danger,#dc2626) 8%,transparent)" title="自社在庫にない機材です。候補から選ぶか、レンタル/フリーで追加してください"' : '';
+    // 自社機材：この期間の実質空き数を上限に。超過は赤枠。
+    const qMax = (it.kind === 'own' && it.itemName && epOwnInInventory(it.itemName)) ? epAvailFor(it.itemName) : Infinity;
+    const qOver = isFinite(qMax) && (parseInt(it.qty)||0) > qMax;
+    const qtyStyle = qOver ? ` style="border-color:var(--danger,#dc2626);background:color-mix(in srgb,var(--danger,#dc2626) 8%,transparent)" title="在庫を超えています（この期間の空き: ${qMax}台）"` : '';
+    const qtyMaxAttr = isFinite(qMax) ? ` max="${qMax}"` : '';
     return `<div class="ep-item-row" data-i="${i}">
       ${modelDatalist}
       <span class="ep-badge ep-${it.kind}">${kindLabel[it.kind]||it.kind}</span>
       ${showMaker ? `<input class="ep-in-maker" ${makerListAttr} placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value" onchange="epOnMakerChange(${i},this.value)">` : ''}
-      <input class="ep-in-name" ${nameListAttr}${invalidStyle} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value;epMarkNameValidity(this,${i})" onchange="epOnNameChange(${i},this.value)">
-      <input class="ep-in-qty" type="number" min="0" value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0">
+      <input class="ep-in-name" ${nameListAttr}${invalidStyle} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value;epMarkNameValidity(this,${i});epMarkQtyValidity(this.parentNode.querySelector('.ep-in-qty'),${i})" onchange="epOnNameChange(${i},this.value)">
+      <input class="ep-in-qty" data-i="${i}" type="number" min="0"${qtyMaxAttr}${qtyStyle} value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0;epMarkQtyValidity(this,${i})">
       <button class="btn ep-del" onclick="epDeleteItem(${i})"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
@@ -1620,6 +1695,17 @@ function saveEditProject() {
   const badOwn = items.filter(it => it.kind === 'own' && !epOwnInInventory(it.itemName));
   if (badOwn.length) {
     alert('次の機材は自社在庫にありません。候補から選ぶか、レンタル／フリーに変更してください：\n\n・' + badOwn.map(it => it.itemName.trim()).join('\n・'));
+    return;
+  }
+  // 自社(own)機材で在庫（この期間の空き）を超える数量はブロック
+  const overStock = items.filter(it => {
+    if (it.kind !== 'own' || !epOwnInInventory(it.itemName)) return false;
+    const m = epAvailFor(it.itemName);
+    return isFinite(m) && (it.qty|0) > m;
+  });
+  if (overStock.length) {
+    alert('次の機材は在庫（この期間の空き）を超えています。数量を減らしてください：\n\n'
+      + overStock.map(it => `・${it.itemName.trim()}（空き ${epAvailFor(it.itemName)}台 / 入力 ${it.qty}台）`).join('\n'));
     return;
   }
   const action = epCreateMode ? 'create_project' : 'edit_project';

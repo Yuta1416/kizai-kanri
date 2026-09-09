@@ -322,8 +322,8 @@
       <div class="ep-field"><label>案件名</label><input id="ep-project" type="text"></div>
       <div class="ep-field"><label>担当者</label><input id="ep-staff" type="text" list="ep-staff-datalist"><datalist id="ep-staff-datalist"></datalist></div>
       <div class="ep-field"><label>車両</label><input id="ep-vehicle" type="text" placeholder="例: キャラバン・トラック" list="ep-vehicle-datalist"><datalist id="ep-vehicle-datalist"></datalist></div>
-      <div class="ep-field"><label>搬入日</label><input id="ep-dateout" type="text" placeholder="2026/7/22"></div>
-      <div class="ep-field"><label>返却日</label><input id="ep-dateret" type="text" placeholder="2026/7/22"></div>
+      <div class="ep-field"><label>搬入日</label><input id="ep-dateout" type="text" placeholder="2026/7/22" oninput="epRevalidateQty()"></div>
+      <div class="ep-field"><label>返却日</label><input id="ep-dateret" type="text" placeholder="2026/7/22" oninput="epRevalidateQty()"></div>
       <div style="margin:12px 0 6px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center">
         <span>機材</span>
         <button class="btn" style="padding:3px 8px;font-size:11px" onclick="epAddItem('own')"><i class="ti ti-plus"></i> 自社</button>
