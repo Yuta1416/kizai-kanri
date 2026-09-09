@@ -8,8 +8,12 @@ const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
 const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-');
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
+// スタッフスケジュール表で表示する担当者列（0始まり・A=0,B=1,C=2…）。日付(0)・曜日(1)は常に表示。
+// 大阪: C〜J（三宅代表・谷垣社長・楠目取締役・萩原取締役・本田主任・玉田主任・川本・仲野）
+const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
+
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v62';
+const APP_VERSION = 'v63';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2248,11 +2252,12 @@ function renderStaffShiftSheet(idx) {
   const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', range:0});
 
-  const blueCols = new Set([3,5,7,9]);
+  // 表示する担当者列（サイトごとに STAFF_SHIFT_COLS で指定）。交互列を淡く強調。
+  const cols = STAFF_SHIFT_COLS;
 
   let html = '<table style="border-collapse:collapse;table-layout:fixed;width:100%">';
   html += '<colgroup><col style="width:26px"><col style="width:24px">';
-  for (let c = 2; c < 10; c++) html += '<col>';
+  for (let i = 0; i < cols.length; i++) html += '<col>';
   html += '</colgroup>';
 
   data.slice(0, 35).forEach((row, r) => {
@@ -2264,10 +2269,10 @@ function renderStaffShiftSheet(idx) {
     if (r === 0) {
       html += '<tr>';
       html += `<td colspan="2" class="sft-cell sft-hd" style="font-size:11px">${escHtml(String(row[0]||''))}</td>`;
-      for (let c = 2; c < 10; c++) {
-        const cls = blueCols.has(c) ? 'sft-cell sft-hd sft-hd-blue' : 'sft-cell sft-hd';
+      cols.forEach((c, i) => {
+        const cls = (i % 2 === 1) ? 'sft-cell sft-hd sft-hd-blue' : 'sft-cell sft-hd';
         html += `<td class="${cls}">${escHtml(String(row[c]||''))}</td>`;
-      }
+      });
       html += '</tr>';
     } else {
       html += '<tr>';
@@ -2277,11 +2282,11 @@ function renderStaffShiftSheet(idx) {
       // 曜日
       html += `<td class="sft-cell sft-dt ${rowCls}${txtCls}" style="font-size:13px">${escHtml(youbi)}</td>`;
       // スタッフ列
-      for (let c = 2; c < 10; c++) {
+      cols.forEach((c, i) => {
         const val = String(row[c] !== undefined ? row[c] : '');
-        const cls = rowCls ? `sft-cell ${rowCls}` : blueCols.has(c) ? 'sft-cell sft-blue' : 'sft-cell';
+        const cls = rowCls ? `sft-cell ${rowCls}` : (i % 2 === 1) ? 'sft-cell sft-blue' : 'sft-cell';
         html += `<td class="${cls}">${escHtml(val)}</td>`;
-      }
+      });
       html += '</tr>';
     }
   });
