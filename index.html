@@ -130,6 +130,19 @@
     <button class="btn" onclick="clearSelection()">解除</button>
   </div>
 
+  <!-- 一括：機材ごとの数量指定モーダル -->
+  <div class="modal-backdrop" id="modal-bulk-qty">
+    <div class="modal">
+      <h3><i class="ti ti-list-numbers" aria-hidden="true"></i> 数量を指定</h3>
+      <div id="bulk-qty-status" style="font-size:13px;margin-bottom:10px"></div>
+      <div id="bulk-qty-list"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-bulk-qty')">キャンセル</button>
+        <button class="btn btn-primary" onclick="confirmBulkSpecial()">確定</button>
+      </div>
+    </div>
+  </div>
+
   <div id="view-out" style="display:none">
     <div id="out-container"></div>
   </div>

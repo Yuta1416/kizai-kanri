@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v64';
+const APP_VERSION = 'v65';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -381,36 +381,68 @@ function updateBulkBar() {
       : '<i class="ti ti-checkbox" aria-hidden="true"></i> 選択';
   }
 }
+// 「適用」→ 各機材の数量を指定するモーダルを開く（初期値=残数、機材ごとに変更可）
 function applyBulkSpecial() {
   const status = document.getElementById('bulk-status').value;
-  // 選択された行のうち、変更可能な数量(avail>0)があるものだけ対象
   const targets = [];
   const skipped = [];
   selectedRows.forEach(row => {
     const item = inv.find(i => i.row === row);
     if (!item) return;
-    const av = avail(item);
-    if (av > 0) targets.push({ row: row, qty: av, item: item });
+    if (avail(item) > 0) targets.push(item);
     else skipped.push(item.model);
   });
   if (!targets.length) { alert('変更できる在庫がある機材が選択されていません。'); return; }
-  let msg = `選択した ${targets.length} 件を「${status}」にします。`;
-  if (skipped.length) msg += `\n（在庫0のため対象外: ${skipped.length}件）`;
-  if (!confirm(msg)) return;
+  window._bulkStatus = status;
+  document.getElementById('bulk-qty-status').innerHTML =
+    `ステータス: <strong>${escHtml(status)}</strong> ／ ${targets.length}件`
+    + (skipped.length ? `<br><span style="color:var(--text2)">（在庫0のため対象外: ${skipped.length}件）</span>` : '');
+  document.getElementById('bulk-qty-list').innerHTML = targets.map(item => {
+    const av = avail(item);
+    return `<div class="bulk-qty-row">
+      <div class="bulk-qty-name">${escHtml(item.model)}<span class="bulk-qty-maker">${escHtml(item.maker)}</span></div>
+      <div class="bulk-qty-ctrl">
+        <input type="number" class="bulk-qty-input" data-row="${item.row}" data-max="${av}" value="${av}" min="0" max="${av}"
+               onclick="event.stopPropagation()">
+        <span class="bulk-qty-avail">/ ${av}</span>
+      </div>
+    </div>`;
+  }).join('');
+  openModal('modal-bulk-qty');
+}
+
+// モーダルで入力した数量で一括適用（行番号ベース＋ロック）
+function confirmBulkSpecial() {
+  const status = window._bulkStatus || document.getElementById('bulk-status').value;
+  const inputs = [...document.querySelectorAll('#bulk-qty-list .bulk-qty-input')];
+  const payload = [];
+  const localApply = [];
+  inputs.forEach(inp => {
+    const row = parseInt(inp.dataset.row);
+    const max = parseInt(inp.dataset.max) || 0;
+    let q = parseInt(inp.value) || 0;
+    if (q < 1) return;            // 0/空欄はスキップ
+    if (q > max) q = max;
+    const item = inv.find(i => i.row === row);
+    if (!item) return;
+    payload.push({ row: row, qty: q });
+    localApply.push({ item: item, qty: q });
+  });
+  if (!payload.length) { alert('数量を1以上で入力してください。'); return; }
+  closeModal('modal-bulk-qty');
 
   // 楽観的にローカル反映
   const now = new Date().toLocaleString('ja-JP');
-  targets.forEach(t => {
+  localApply.forEach(t => {
     t.item.special += t.qty; t.item.status = status;
     history.push({ date: now, project:'', staff:'', model: `${t.item.maker} ${t.item.model}`, qty: t.qty, action: status, note:'' });
   });
   clearSelection();
   render();
 
-  // サーバーへ一括送信（行番号ベース＋ロック）
+  // サーバーへ一括送信
   if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
     const cbB = 'cb_' + Date.now();
-    const payload = targets.map(t => ({ row: t.row, qty: t.qty }));
     const params = new URLSearchParams({
       action: 'special_bulk',
       status: status,
