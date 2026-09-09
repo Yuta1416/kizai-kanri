@@ -9,7 +9,7 @@ const _isBranchPreview = _host.includes('-git-') && !_host.includes('-git-main-'
 const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v61';
+const APP_VERSION = 'v62';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -142,6 +142,7 @@ const RAW = [
 
 let inv = RAW.map(c => ({cat:c[0],maker:c[1],model:c[2],total:c[3],out:0,special:0,status:'IN',note:c[4]||''}));
 let outItems = [], history = [];
+let dataLoaded = false; // 一度でもGASから在庫を取得できたか（失敗時に空表示せず再試行/エラー表示するため）
 
 // 日付文字列を堅牢にパース（"2026/9/23 11:00" / "2026年9月23日 11:00" 両対応）
 function parseDate(str) {
@@ -1643,6 +1644,8 @@ function showLoading(on) {
   const el = document.getElementById('loading-screen');
   if (!el) return;
   if (on) {
+    // 再試行時などにエラー表示が残らないよう、毎回スピナーに戻す
+    el.innerHTML = '<div class="spinner"></div><div class="loading-label">読み込み中...</div>';
     _loadingStart = Date.now();
     el.classList.remove('hidden');
   } else {
@@ -1791,30 +1794,62 @@ function fetchFromSpreadsheet() {
   fetchShiftFile();
   fetchStaffShiftFile();
 
+  const _retry = arguments[0] || 0;
   const cbName = 'gasCallback_' + Date.now();
-  window[cbName] = function(json) {
-    delete window[cbName];
-    const el = document.getElementById('jsonp_' + cbName);
-    if (el) el.remove();
+  let settled = false;
+  const script = document.createElement('script');
+  const cleanup = function() {
+    try { delete window[cbName]; } catch(e) {}
+    if (script && script.parentNode) script.remove();
+  };
+  // 通信エラー/タイムアウト/status!=ok 時：まだ一度も読めていなければ自動リトライ、
+  // 数回ダメならエラー表示。空表示のまま放置しない。
+  const onFail = function() {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    cleanup();
+    if (_retry < 2) {
+      setTimeout(function() { fetchFromSpreadsheet(_retry + 1); }, 1500); // ローディング表示は維持したまま再試行
+    } else {
+      showLoading(false);
+      if (!dataLoaded) showLoadError(); else render();
+    }
+  };
+  const timer = setTimeout(onFail, 20000); // 応答が来ない/GASコールド時の保険
 
-    applyData(json);
-    render();
-    if (currentTab === 'dashboard') renderDashboard();
-    if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
-    showLoading(false);
+  window[cbName] = function(json) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    cleanup();
+    if (json && json.status === 'ok') {
+      applyData(json);
+      dataLoaded = true;
+      render();
+      if (currentTab === 'dashboard') renderDashboard();
+      if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
+      showLoading(false);
+    } else {
+      onFail(); // status=error 等はリトライ扱い
+    }
   };
 
-  const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
   script.src = GAS_API_URL + '?action=all&callback=' + cbName;
-  script.onerror = function() {
-    console.error('GAS接続エラー');
-    delete window[cbName];
-    script.remove();
-    render();
-    showLoading(false);
-  };
+  script.onerror = onFail;
   document.body.appendChild(script);
+}
+
+// 読み込み失敗時：空表示ではなく再試行ボタンを出す（ローディング画面を流用）
+function showLoadError() {
+  const el = document.getElementById('loading-screen');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:24px;max-width:300px">'
+    + '<div style="font-size:40px;margin-bottom:10px">📡</div>'
+    + '<div style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:18px">データの読み込みに失敗しました。<br>通信環境を確認して、もう一度お試しください。</div>'
+    + '<button class="btn btn-primary" onclick="reloadData()"><i class="ti ti-refresh" aria-hidden="true"></i> 再試行</button></div>';
+  el.classList.remove('hidden');
 }
 
 
