@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v70';
+const APP_VERSION = 'v71';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -567,8 +567,10 @@ function renderOut() {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
+    // 予約タブと同じ「搬入」バッジ（日付は整形して表示）
+    const introBadge = `<span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(fmtDateDisp(g.dateOut))}</span>`;
     const autoLabel = g.returnDate
-      ? `<span class="badge s-info" style="font-size:10px"><i class="ti ti-clock"></i> 自動 ${g.returnDate}</span>`
+      ? `<span class="badge s-info" style="font-size:10px"><i class="ti ti-clock"></i> 自動返却 ${escHtml(fmtDateDisp(g.returnDate))}</span>`
       : `<span class="badge s-absent" style="font-size:10px">手動返却</span>`;
     const ownItems    = g.items.filter(o => o.note !== '[レンタル]' && o.note !== '(在庫管理外)');
     const rentalItems = g.items.filter(o => o.note === '[レンタル]');
@@ -600,7 +602,7 @@ function renderOut() {
             <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
             <span class="proj-group-name">${project}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${g.staff||'担当未入力'}</span>
-            ${autoLabel}
+            ${introBadge}${autoLabel}
           </div>
           <div class="proj-group-right">
             <span class="proj-count">${g.items.length}品目</span>
