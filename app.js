@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v67';
+const APP_VERSION = 'v68';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},

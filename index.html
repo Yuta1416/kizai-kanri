@@ -44,6 +44,8 @@
         <div id="more-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:6px;min-width:190px;z-index:200;box-shadow:var(--shadow-lg)">
           <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();resyncStock()"><i class="ti ti-calculator" aria-hidden="true" style="font-size:16px"></i> 在庫再計算</button>
           <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openErrorList()"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:16px"></i> エラー再投入</button>
+          <div style="height:1px;background:var(--border);margin:6px 2px"></div>
+          <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();window.open('https://kizai-kanri-tokyo.vercel.app','_blank')"><i class="ti ti-external-link" aria-hidden="true" style="font-size:16px"></i> 東京の機材管理を開く</button>
         </div>
       </div>
     </div>
