@@ -13,7 +13,7 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v66';
+const APP_VERSION = 'v67';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1673,8 +1673,16 @@ function epOnNameChange(i, val) {
   }
 }
 function epAddItem(kind) {
-  epItemsState.push({ kind, category:'', maker:'', itemName:'', qty:1, note:'' });
+  // 最下部だと気づかれにくいので先頭に追加
+  epItemsState.unshift({ kind, category:'', maker:'', itemName:'', qty:1, note:'' });
   renderEpItems();
+  // 追加行を見やすく：一覧を先頭までスクロールし入力欄にフォーカス
+  const box = document.getElementById('ep-items');
+  if (box) {
+    box.scrollTop = 0;
+    const inp = box.querySelector('.ep-item-row .ep-in-name') || box.querySelector('.ep-item-row .ep-in-maker');
+    if (inp) inp.focus();
+  }
 }
 function epDeleteItem(i) {
   epItemsState.splice(i, 1);
