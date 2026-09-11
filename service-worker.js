@@ -1,6 +1,6 @@
 // ★デプロイのたびに必ずこの版番号を上げる（新SWを検知→installで即skipWaiting→自動で最新化）
 //   app.js の APP_VERSION も同じ値に揃える
-const CACHE_NAME = 'kizai-cache-v76';
+const CACHE_NAME = 'kizai-cache-v77';
 
 // PWA用にアイコン等だけキャッシュ（アプリ本体は一切キャッシュしない＝常に最新）
 const CORE_ASSETS = ['/manifest.json', '/icon-192.png', '/icon-512.png'];
@@ -35,8 +35,9 @@ self.addEventListener('fetch', event => {
   if (url.includes('script.google.com')) return; // GAS APIは触らない
 
   const isLocal = url.startsWith(self.location.origin);
-  // アプリ本体（HTML/JS/CSS・ナビゲーション）は常にネットワークから（キャッシュしない＝古い版を出さない）
-  const isAppCode = req.mode === 'navigate' || url.endsWith('/') || /\.(html|js|css)(\?.*)?$/.test(url);
+  // アプリ本体（自サイトのHTML/JS/CSS・ナビゲーション）だけ常にネットワークから（キャッシュしない＝古い版を出さない）。
+  // ※外部CDNの .css（アイコン等）はここに含めない＝毎回no-storeで取り直して真っ黒待ちになるのを防ぐ
+  const isAppCode = isLocal && (req.mode === 'navigate' || url.endsWith('/') || /\.(html|js|css)(\?.*)?$/.test(url));
 
   if (isAppCode) {
     event.respondWith(
@@ -45,24 +46,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // ローカルの画像・manifestなど：cache-first（変化が少ない）
-  if (isLocal) {
-    event.respondWith(
-      caches.match(req).then(cached => cached || fetch(req).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
-        return response;
-      }))
-    );
-    return;
-  }
-
-  // 外部CDN（フォント・アイコン）：network-first
+  // それ以外（ローカル画像・manifest／外部CDNのフォント・アイコン）は cache-first。
+  // 版はURLで固定されているので、一度キャッシュすれば次回以降は即表示＝CDNが遅くても待たない。
   event.respondWith(
-    fetch(req).then(response => {
+    caches.match(req).then(cached => cached || fetch(req).then(response => {
       const clone = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+      caches.open(CACHE_NAME).then(cache => cache.put(req, clone)).catch(() => {});
       return response;
-    }).catch(() => caches.match(req))
+    }).catch(() => cached))
   );
 });
