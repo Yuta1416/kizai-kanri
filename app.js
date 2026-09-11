@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v80';
+const APP_VERSION = 'v81';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2707,15 +2707,31 @@ function checkAutoReturn() {
   render();
 }
 
+// 汎用「取得中…」インジケータ（DL等の待ちを"固まった"ように見せない・どのボタンからでも使える）
+let _busyEl = null;
+function showBusy(msg) {
+  if (!_busyEl) {
+    _busyEl = document.createElement('div');
+    _busyEl.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:99998;background:var(--bg2,#1e293b);color:var(--text,#e5e7eb);border:1px solid var(--border,#334155);border-radius:999px;padding:9px 18px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;white-space:nowrap';
+    document.body.appendChild(_busyEl);
+  }
+  _busyEl.innerHTML = '<i class="ti ti-loader-2 spinning" aria-hidden="true"></i> ' + escHtml(msg || '取得中…');
+  _busyEl.style.display = 'flex';
+}
+function hideBusy() { if (_busyEl) _busyEl.style.display = 'none'; }
+
 function downloadPickupList(project, dateKey, event) {
   if (event) event.stopPropagation();
   if (!project) { alert('案件を選択してください'); return; }
+  showBusy('持ち出しリストを取得中…');
+  let settled = false;
   const cbName = 'pickupCallback_' + Date.now();
+  const cleanup = () => { try { delete window[cbName]; } catch(e){} const el = document.getElementById('jsonp_' + cbName); if (el) el.remove(); };
+  const hint = setTimeout(() => { if (!settled) showBusy('持ち出しリストを取得中…(少々お待ちを)'); }, 6000);
+  const timer = setTimeout(() => { if (settled) return; settled = true; clearTimeout(hint); cleanup(); hideBusy(); alert('取得に時間がかかっています。混み合っている可能性があります。もう一度お試しください。'); }, 55000);
   window[cbName] = function(json) {
-    delete window[cbName];
-    const el = document.getElementById('jsonp_' + cbName);
-    if (el) el.remove();
-    if (json.status !== 'ok') { alert('取得失敗: ' + (json.message || 'エラー')); return; }
+    if (settled) return; settled = true; clearTimeout(hint); clearTimeout(timer); cleanup(); hideBusy();
+    if (!json || json.status !== 'ok') { alert('取得失敗: ' + ((json && json.message) || 'エラー')); return; }
     // Dropboxの持ち出しリスト現物（受注書コピー＋転記済み）をそのままダウンロード
     const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
     const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -2729,7 +2745,7 @@ function downloadPickupList(project, dateKey, event) {
   script.id = 'jsonp_' + cbName;
   script.src = GAS_API_URL + '?action=pickupfile&callback=' + cbName + '&project=' + encodeURIComponent(project) + (dateKey ? '&dateKey=' + encodeURIComponent(dateKey) : '');
   script.onerror = function() {
-    delete window[cbName]; script.remove();
+    if (settled) return; settled = true; clearTimeout(hint); clearTimeout(timer); cleanup(); hideBusy();
     alert('取得に失敗しました');
   };
   document.body.appendChild(script);
