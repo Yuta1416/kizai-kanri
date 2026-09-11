@@ -662,35 +662,44 @@ tr:hover td { background: var(--bg3); }
   box-shadow: 0 -2px 12px rgba(15,23,42,0.08);
 }
 .bnav-item {
-  flex: 1;
+  flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; padding: 6px 4px;
+  gap: 2px; padding: 6px 2px;
   background: none; border: none;
   color: var(--text3); cursor: pointer;
   font-family: var(--font); font-size: 10px; font-weight: 500;
   border-radius: 8px;
   transition: color 0.12s;
+  white-space: nowrap;
 }
+.bnav-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .bnav-item i { font-size: 22px; }
 .bnav-item.on { color: var(--primary); }
 .bnav-item.on i { color: var(--primary); }
 
+/* ===== レスポンシブ：タブレット以下（上部7タブが収まらないので下部ナビに切替） ===== */
+@media (max-width: 860px) {
+  .tab-bar { display: none; }
+  .bottom-nav { display: flex; }
+  .app { padding-bottom: 88px; }
+  .topbar-left h1 { white-space: nowrap; }
+  /* ヘッダーのボタンはアイコンのみ（テキストを消して省スペース＝タイトルが折れない） */
+  .topbar-right .btn { font-size: 0; padding: 9px 12px; gap: 0; }
+  .topbar-right .btn i { font-size: 17px; }
+}
+
 /* ===== レスポンシブ：スマホ ===== */
 @media (max-width: 720px) {
   .app { padding: 12px 12px 88px; }
-  .topbar { padding: 10px 12px; border-radius: var(--radius); flex-wrap: nowrap; gap: 6px; }
-  .topbar-left { flex-shrink: 0; }
+  /* ヘッダーは2段に折り返す（最終更新テキスト＋ボタンが1行に収まらず崩れるため） */
+  .topbar { padding: 10px 12px; border-radius: var(--radius); flex-wrap: wrap; row-gap: 8px; column-gap: 6px; }
+  .topbar-left { flex: 1 1 100%; min-width: 0; }
   .topbar-left h1 { font-size: 15px; white-space: nowrap; }
   .topbar-left i { font-size: 19px; }
+  #last-updated { margin-left: auto; }  /* タイトル行の右端に寄せる */
   .site-badge { width: 28px; height: 28px; font-size: 16px; border-radius: 8px; }
-  .topbar-right { gap: 6px; flex-wrap: nowrap; }
-  /* font-size:0 でテキストノードを消し、iだけ復活 */
-  .topbar-right .btn { font-size: 0; padding: 8px 10px; gap: 0; }
-  .topbar-right .btn i { font-size: 16px; }
-
-  /* 上部タブは非表示（ボトムナビに統合） */
-  .tab-bar { display: none; }
-  .bottom-nav { display: flex; }
+  .topbar-right { flex: 1 1 100%; gap: 6px; flex-wrap: nowrap; justify-content: space-between; }
+  /* ボタンのアイコンのみ表示は 860px 側で指定済み */
 
   .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat { padding: 10px 12px; border-radius: var(--radius); gap: 10px; }
