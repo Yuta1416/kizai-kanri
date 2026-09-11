@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v82';
+const APP_VERSION = 'v83';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1197,42 +1197,79 @@ function renderLoanItems() {
   // 自社在庫のみ（借用の合成在庫は貸せない）
   const list = (inv||[]).filter(it => !it.synthetic && (it.total||0) > 0)
     .filter(it => !kw || [it.model,it.cat,it.maker].some(x => String(x||'').toLowerCase().includes(kw)));
-  if (!list.length) { box.innerHTML = '<div style="padding:14px;color:var(--text2);font-size:13px">該当する機材がありません</div>'; return; }
-  box.innerHTML = list.map(it => {
-    const av = loanAvailFor(it);
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(it.model)}</div>
-        <div style="font-size:11px;color:var(--text2)">${escHtml(it.cat||'')}${it.maker?' ・ '+escHtml(it.maker):''} ・ この期間の空き ${av}台</div>
-      </div>
-      <input type="number" min="0" step="1" value="0" class="loan-in-qty"
-        data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}"
-        style="width:66px;text-align:center" oninput="loanMarkQty(this)">
-    </div>`;
+  if (!list.length) { box.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">該当する機材がありません</div>'; return; }
+  // カテゴリでグループ化（在庫の並び順を踏襲）
+  const groups = {}, order = [];
+  list.forEach(it => { const c = it.cat || 'その他'; if (!groups[c]) { groups[c] = []; order.push(c); } groups[c].push(it); });
+  box.innerHTML = order.map(cat => {
+    const rows = groups[cat].map(it => {
+      const av = loanAvailFor(it);
+      const dis = av <= 0;
+      const sub = dis ? '<span class="full">貸出できる在庫なし</span>'
+        : `この期間の空き <b>${av}</b>台${it.maker ? '　'+escHtml(it.maker) : ''}`;
+      return `<div class="loan-pick-row">
+        <div class="loan-pick-info">
+          <div class="loan-pick-name">${escHtml(it.model)}</div>
+          <div class="loan-pick-sub">${sub}</div>
+        </div>
+        <div class="loan-stepper">
+          <button type="button" class="loan-step-btn" onclick="loanStep(this,-1)" aria-label="減らす" disabled>−</button>
+          <input type="number" min="0" step="1" value="0" class="loan-in-qty" inputmode="numeric"
+            data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}"
+            oninput="loanMarkQty(this)" ${dis ? 'disabled' : ''}>
+          <button type="button" class="loan-step-btn" onclick="loanStep(this,1)" aria-label="増やす" ${dis ? 'disabled' : ''}>+</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="loan-pick-cat">${escHtml(cat)}</div>` + rows;
   }).join('');
+  updateLoanPickSummary();
+}
+// ＋/− ボタン（タップで数量調整・空きで上限クランプ）
+function loanStep(btn, delta) {
+  const row = btn.closest('.loan-pick-row'); if (!row) return;
+  const input = row.querySelector('.loan-in-qty'); if (!input || input.disabled) return;
+  const item = (inv||[]).find(x => String(x.model) === input.getAttribute('data-model'));
+  const max = item ? loanAvailFor(item) : 0;
+  let v = (parseInt(input.value) || 0) + delta;
+  if (v < 0) v = 0; if (v > max) v = max;
+  input.value = v;
+  loanMarkQty(input);
 }
 function loanMarkQty(el) {
-  const model = el.getAttribute('data-model');
-  const item = (inv||[]).find(x => String(x.model) === String(model));
+  const item = (inv||[]).find(x => String(x.model) === el.getAttribute('data-model'));
   if (!item) return false;
   const max = loanAvailFor(item);
-  const qv = parseInt(el.value) || 0;
+  let qv = parseInt(el.value) || 0;
+  if (qv < 0) { qv = 0; el.value = 0; }
   const bad = qv > max;
-  el.style.borderColor = bad ? 'var(--danger, #dc2626)' : '';
-  el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
+  el.classList.toggle('bad', bad);
   el.title = bad ? `この期間に貸せる上限は ${max}台です` : '';
   el.max = max;
+  const row = el.closest('.loan-pick-row');
+  if (row) {
+    row.classList.toggle('on', qv > 0);
+    row.querySelector('.loan-stepper')?.classList.toggle('on-bad', bad);
+    const minus = row.querySelector('.loan-step-btn'); if (minus) minus.disabled = (qv <= 0);
+    const plus = row.querySelectorAll('.loan-step-btn')[1]; if (plus) plus.disabled = (qv >= max);
+  }
+  updateLoanPickSummary();
   return bad;
 }
+// 選択中の合計を下部に表示
+function updateLoanPickSummary() {
+  const el = document.getElementById('loan-pick-summary'); if (!el) return;
+  let items = 0, qty = 0;
+  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(inp => { const v = parseInt(inp.value)||0; if (v>0){ items++; qty += v; } });
+  el.innerHTML = items ? `選択中：<b>${items}品目・計${qty}台</b>` : '＋−で貸す台数を選んでください';
+}
 function loanRevalidateQty() {
-  // 空き数の再計算（期間変更時）→ 表示も更新
-  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => loanMarkQty(el));
-  // 空き数のラベルも更新するため一覧を再描画（入力値は保持）
+  // 期間変更時：入力値を保持したまま空き数ラベルを再描画
   const cur = {};
   document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => { cur[el.getAttribute('data-model')] = el.value; });
   renderLoanItems();
   document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => {
-    const m = el.getAttribute('data-model'); if (cur[m] != null) { el.value = cur[m]; loanMarkQty(el); }
+    const m = el.getAttribute('data-model'); if (cur[m] != null && !el.disabled) { el.value = cur[m]; loanMarkQty(el); }
   });
 }
 function submitLoan() {
@@ -1270,7 +1307,7 @@ function renderLoanTab() {
   const box = document.getElementById('loan-tab-body'); if (!box) return;
   const out = (loans&&loans.out)||[], inn = (loans&&loans.in)||[];
   const rows = (arr, dir) => {
-    if (!arr.length) return `<div class="empty" style="padding:18px 4px;color:var(--text2);font-size:13px">${dir==='out'?'貸している機材はありません':'借りている機材はありません'}</div>`;
+    if (!arr.length) return `<div class="empty">${dir==='out'?'貸している機材はありません':'借りている機材はありません'}</div>`;
     const byId = {};
     arr.forEach(l => { (byId[l.loanId] = byId[l.loanId] || []).push(l); });
     return Object.keys(byId).map(id => {
@@ -1294,9 +1331,9 @@ function renderLoanTab() {
     }).join('');
   };
   box.innerHTML =
-    `<div class="card-section-label" style="margin-top:4px">🔁 貸している（${escHtml(PEER_LABEL)}へ）</div><div class="card-grid">` + rows(out, 'out') + `</div>` +
-    `<div class="card-section-label" style="margin-top:16px">📥 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>` +
-    `<div class="card-section-label" style="margin-top:16px"><i class="ti ti-history"></i> 貸し借りの履歴</div>` + renderLoanHistoryHtml();
+    `<div class="card-section-label"><i class="ti ti-arrow-up-right" aria-hidden="true"></i> ${escHtml(PEER_LABEL)}へ貸している</div><div class="card-grid">` + rows(out, 'out') + `</div>` +
+    `<div class="card-section-label" style="margin-top:18px"><i class="ti ti-arrow-down-left" aria-hidden="true"></i> 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>` +
+    `<div class="card-section-label" style="margin-top:18px"><i class="ti ti-history" aria-hidden="true"></i> 貸し借りの履歴</div>` + renderLoanHistoryHtml();
 }
 // 貸し借り履歴を年月ごとの折りたたみ（履歴タブと同じ形式）で描画
 function renderLoanHistoryHtml() {
@@ -1306,7 +1343,7 @@ function renderLoanHistoryHtml() {
   if (!loanHistory.length) {
     return `<div class="empty" style="padding:16px 4px;color:var(--text2);font-size:13px">履歴はまだありません</div>`;
   }
-  const actIcon = a => a==='拠点間貸出' ? '🔁' : (a==='拠点間自動返却' ? '🔄' : '↩️');
+  const actIcon = a => a==='拠点間貸出' ? '<i class="ti ti-arrow-up-right"></i>' : (a==='拠点間自動返却' ? '<i class="ti ti-refresh"></i>' : '<i class="ti ti-arrow-back-up"></i>');
   const actCls  = a => a==='拠点間貸出' ? 's-out' : 's-info';
   // 年月でグループ化（loanHistory は新しい順）
   const groups = {}; const order = [];
