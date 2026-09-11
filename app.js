@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v77';
+const APP_VERSION = 'v78';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2335,9 +2335,9 @@ function fetchFromSpreadsheet() {
     return;
   }
 
-  fetchShiftFile();
-  fetchStaffShiftFile();
-
+  // ※重いDropboxのシフト表(shift_file/staff_shift_file)は起動時に同時発火しない。
+  //   GASは同一デプロイへの同時実行を直列化するため、action=all と競合して開くのが遅くなる。
+  //   → action=all を最優先で取得し、スタッフシフトは成功後に読む（下の callback）。
   const _retry = arguments[0] || 0;
   const cbName = 'gasCallback_' + Date.now();
   let settled = false;
@@ -2374,6 +2374,8 @@ function fetchFromSpreadsheet() {
       if (currentTab === 'dashboard') renderDashboard();
       if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
       showLoading(false);
+      // アプリが使える状態になってから、重いスタッフシフト表を読む（ホーム表示用・GAS競合回避）
+      setTimeout(function() { if (currentTab === 'all' || currentTab === 'dashboard') fetchStaffShiftFile(); }, 300);
     } else {
       onFail(); // status=error 等はリトライ扱い
     }
@@ -3180,11 +3182,11 @@ function reloadData() {
   }, 1500);
 }
 
-// 起動時
+// 起動時：まず action=all だけを取得（予約もconflictも含まれるので個別取得は不要）。
+//   fetchReservations()（=action=all と重複）と fetchShortageLog()（=到達不能なダッシュボード専用）は
+//   起動時に発火しない＝GASの同時実行競合を減らして開くのを速くする。
 showLoading(true);
 fetchFromSpreadsheet();
-fetchReservations();
-fetchShortageLog();
 // 5分ごとに自動更新
 setInterval(fetchFromSpreadsheet, 300000);
 setInterval(checkAutoReturn, 60000);
