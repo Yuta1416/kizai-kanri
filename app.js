@@ -12,8 +12,11 @@ const GAS_API_URL = (_isLocal || _isBranchPreview) ? GAS_STAGING : GAS_PROD;
 // 大阪: C〜J（三宅代表・谷垣社長・楠目取締役・萩原取締役・本田主任・玉田主任・川本・仲野）
 const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 
+// 拠点間 貸し借りの相手拠点名（大阪→東京 / 東京→大阪）。表示ラベル用。
+const PEER_LABEL = '東京';
+
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v71';
+const APP_VERSION = 'v72';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -168,6 +171,7 @@ let currentTab = 'all';
 let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1;
 let rentalRanking = [];
 let conflicts = [];
+let loans = { out: [], in: [] }; // 拠点間 貸し借り：out=自拠点が貸している / in=借りている
 let pdDateKey = '';
 let pdProject = '';
 
@@ -182,6 +186,13 @@ function avail(item) { return Math.max(0, item.total - item.out - item.special);
 function badge(st) {
   const c = SC[st] || SC['IN'];
   return `<span class="badge ${c.cls}"><i class="ti ${c.icon}"></i>${st}</span>`;
+}
+// 拠点間 貸し借りバッジ（貸出中/借用中）
+function loanBadge(item) {
+  let h = '';
+  if (item && item.lentOut > 0) h += `<span class="badge s-info" title="${escHtml(item.lentTo||'')}へ貸出中"><i class="ti ti-transfer"></i>貸出 ${item.lentOut}</span>`;
+  if (item && item.borrowed > 0) h += `<span class="badge s-info" title="${escHtml(item.borrowedFrom||'')}から借用中"><i class="ti ti-download"></i>借用 ${item.borrowed}</span>`;
+  return h;
 }
 
 function escHtml(s) {
@@ -510,7 +521,7 @@ function renderInventory() {
           <div class="item-card-info">
             <div class="item-card-name">${escHtml(item.model)}</div>
             <div class="item-card-maker">${escHtml(item.maker)}</div>
-            ${badge(st)}
+            ${badge(st)}${loanBadge(item)}
           </div>
           <div class="item-card-right">
             <div class="item-card-count ${cntCls}">${av}</div>
@@ -529,9 +540,11 @@ function openItemDetail(idx) {
   const canOut = av>0 && !['修理中','レンタル中','長期不在'].includes(st);
   document.getElementById('detail-name').textContent = item.model;
   document.getElementById('detail-maker').textContent = item.maker + ' / ' + item.cat;
-  document.getElementById('detail-badge').innerHTML = badge(st);
+  document.getElementById('detail-badge').innerHTML = badge(st) + loanBadge(item);
   document.getElementById('detail-counts').innerHTML =
-    `残数: <strong>${av}</strong> / 総数: ${item.total}` + (item.out>0?` / 持ち出し中: ${item.out}`:'');
+    `残数: <strong>${av}</strong> / 総数: ${item.total}` + (item.out>0?` / 持ち出し中: ${item.out}`:'')
+    + (item.lentOut>0?` / <span style="color:var(--info-text,#2563eb)">貸出中: ${item.lentOut}（${escHtml(item.lentTo||'')}）</span>`:'')
+    + (item.borrowed>0?` / <span style="color:var(--info-text,#2563eb)">借用中: ${item.borrowed}（${escHtml(item.borrowedFrom||'')}）</span>`:'');
   document.getElementById('detail-note').textContent = item.note || '—';
   const acts = document.getElementById('detail-actions');
   acts.innerHTML =
@@ -1121,6 +1134,169 @@ function gasJsonp(params, onDone) {
   document.body.appendChild(script);
 }
 
+// ============================================================
+// 拠点間 貸し借り（アプリ内で完結）
+// ============================================================
+// 指定期間[sT,eT]における model の消費ピーク（予約・持ち出し・既存の貸出）
+function _loanPeakUsage(model, sT, eT) {
+  const FAR = new Date(2999,0,1).getTime();
+  const evs = [];
+  const addBk = (mname, qty, dOut, dRet) => {
+    if (!_epNameMatch(mname, model)) return;
+    const bs = parseDate(dOut); if (!bs) return;
+    const be = parseDate(dRet) || new Date(FAR);
+    const bsT = bs.getTime(), beT = be.getTime();
+    if (!(bsT <= eT && sT <= beT)) return;
+    const q = parseInt(qty) || 0; if (q <= 0) return;
+    evs.push({ t: bsT, q: q }); evs.push({ t: beT, q: -q });
+  };
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn));
+  evs.sort((a,b) => a.t - b.t);
+  let cur = 0, peak = 0, prevT = -Infinity;
+  for (const ev of evs) {
+    if (cur > peak && prevT < eT && ev.t > sT) peak = cur;
+    cur += ev.q; prevT = ev.t;
+  }
+  return peak;
+}
+// 貸出期間における model の貸出可能数（未入力期間なら現在の空き）
+function loanAvailFor(item) {
+  const base = Math.max(0, (item.total||0) - (item.special||0));
+  const S = parseDate((document.getElementById('loan-dateout')||{}).value);
+  const E = parseDate((document.getElementById('loan-dateret')||{}).value) || S;
+  if (!S) return avail(item);
+  const peak = _loanPeakUsage(item.model, S.getTime(), E.getTime());
+  return Math.max(0, base - peak);
+}
+function openLoanModal() {
+  // ラベル
+  const pl = document.getElementById('loan-peer-label'); if (pl) pl.textContent = PEER_LABEL;
+  document.querySelectorAll('.loan-peer-name').forEach(el => el.textContent = PEER_LABEL);
+  // 既定日（搬出=今日 / 返却=7日後）
+  const fmt = d => d.toISOString().slice(0,10);
+  const t = new Date(); const t7 = new Date(Date.now()+7*86400000);
+  const dOut = document.getElementById('loan-dateout'); if (dOut) dOut.value = fmt(t);
+  const dRet = document.getElementById('loan-dateret'); if (dRet) dRet.value = fmt(t7);
+  ['loan-staff','loan-note','loan-search'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const st = document.getElementById('loan-status'); if (st) st.textContent = '';
+  renderLoanItems();
+  openModal('modal-loan');
+}
+function renderLoanItems() {
+  const box = document.getElementById('loan-item-list'); if (!box) return;
+  const q = (document.getElementById('loan-search')||{}).value || '';
+  const kw = q.trim().toLowerCase();
+  // 自社在庫のみ（借用の合成在庫は貸せない）
+  const list = (inv||[]).filter(it => !it.synthetic && (it.total||0) > 0)
+    .filter(it => !kw || [it.model,it.cat,it.maker].some(x => String(x||'').toLowerCase().includes(kw)));
+  if (!list.length) { box.innerHTML = '<div style="padding:14px;color:var(--text2);font-size:13px">該当する機材がありません</div>'; return; }
+  box.innerHTML = list.map(it => {
+    const av = loanAvailFor(it);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(it.model)}</div>
+        <div style="font-size:11px;color:var(--text2)">${escHtml(it.cat||'')}${it.maker?' ・ '+escHtml(it.maker):''} ・ この期間の空き ${av}台</div>
+      </div>
+      <input type="number" min="0" step="1" value="0" class="loan-in-qty"
+        data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}"
+        style="width:66px;text-align:center" oninput="loanMarkQty(this)">
+    </div>`;
+  }).join('');
+}
+function loanMarkQty(el) {
+  const model = el.getAttribute('data-model');
+  const item = (inv||[]).find(x => String(x.model) === String(model));
+  if (!item) return false;
+  const max = loanAvailFor(item);
+  const qv = parseInt(el.value) || 0;
+  const bad = qv > max;
+  el.style.borderColor = bad ? 'var(--danger, #dc2626)' : '';
+  el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
+  el.title = bad ? `この期間に貸せる上限は ${max}台です` : '';
+  el.max = max;
+  return bad;
+}
+function loanRevalidateQty() {
+  // 空き数の再計算（期間変更時）→ 表示も更新
+  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => loanMarkQty(el));
+  // 空き数のラベルも更新するため一覧を再描画（入力値は保持）
+  const cur = {};
+  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => { cur[el.getAttribute('data-model')] = el.value; });
+  renderLoanItems();
+  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => {
+    const m = el.getAttribute('data-model'); if (cur[m] != null) { el.value = cur[m]; loanMarkQty(el); }
+  });
+}
+function submitLoan() {
+  const dateOut = (document.getElementById('loan-dateout')||{}).value || '';
+  const dateReturn = (document.getElementById('loan-dateret')||{}).value || '';
+  const st = document.getElementById('loan-status');
+  if (!dateOut || !dateReturn) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='搬出日・返却日を入力してください'; } return; }
+  const items = []; let hasBad = false;
+  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => {
+    const qv = parseInt(el.value) || 0; if (qv <= 0) return;
+    if (loanMarkQty(el)) hasBad = true;
+    items.push({ model: el.getAttribute('data-model'), category: el.getAttribute('data-cat'), maker: el.getAttribute('data-maker'), qty: qv });
+  });
+  if (!items.length) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='貸す機材の数量を入力してください'; } return; }
+  if (hasBad) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='空きを超えている機材があります（赤枠）'; } return; }
+  const btn = document.getElementById('loan-submit-btn'); if (btn) { btn.disabled = true; }
+  if (st) { st.style.color='var(--text2)'; st.textContent='登録中…'; }
+  const payload = { items, dateOut, dateReturn, staff:(document.getElementById('loan-staff')||{}).value||'', note:(document.getElementById('loan-note')||{}).value||'' };
+  gasJsonp({ action:'loan', data: JSON.stringify(payload) }, function(json) {
+    if (btn) btn.disabled = false;
+    if (json && json.status === 'ok') {
+      closeModal('modal-loan');
+      if (typeof showToast === 'function') showToast(PEER_LABEL + 'へ貸出登録しました');
+      reloadData();
+    } else {
+      if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent = (json && json.message) ? json.message : '登録に失敗しました'; }
+    }
+  });
+}
+function openLoanList() {
+  renderLoanList();
+  openModal('modal-loan-list');
+}
+function renderLoanList() {
+  const box = document.getElementById('loan-list-body'); if (!box) return;
+  const out = (loans&&loans.out)||[], inn = (loans&&loans.in)||[];
+  const rows = (arr, dir) => {
+    if (!arr.length) return `<div style="padding:10px 2px;color:var(--text2);font-size:13px">なし</div>`;
+    // loanId でまとめる
+    const byId = {};
+    arr.forEach(l => { (byId[l.loanId] = byId[l.loanId] || []).push(l); });
+    return Object.keys(byId).map(id => {
+      const g = byId[id]; const h = g[0];
+      const items = g.map(l => `${escHtml(l.model)} ×${l.qty}`).join('、');
+      const who = dir === 'out' ? `→ ${escHtml(h.peer)}` : `← ${escHtml(h.peer)}`;
+      return `<div style="padding:10px 2px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;font-weight:600">${items}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${who}　${escHtml(fmtDateDisp(h.dateOut))} 〜 ${escHtml(fmtDateDisp(h.dateReturn))}${h.staff?'　担当:'+escHtml(h.staff):''}</div>
+        <div style="margin-top:6px"><button class="btn" style="font-size:12px;padding:4px 10px" onclick="returnLoan('${id}')"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button></div>
+      </div>`;
+    }).join('');
+  };
+  box.innerHTML =
+    `<div style="font-weight:700;font-size:13px;margin:4px 0 6px">🔁 貸している（${PEER_LABEL}などへ）</div>` + rows(out, 'out') +
+    `<div style="font-weight:700;font-size:13px;margin:14px 0 6px">📥 借りている</div>` + rows(inn, 'in');
+}
+function returnLoan(loanId) {
+  if (!loanId) return;
+  if (!confirm('この貸し借りを返却（両拠点から削除）します。よろしいですか？')) return;
+  gasJsonp({ action:'loan_return', loanId: loanId }, function(json) {
+    if (json && json.status === 'ok') {
+      if (typeof showToast === 'function') showToast('返却しました');
+      reloadData();
+      setTimeout(function(){ if (document.getElementById('modal-loan-list').classList.contains('open')) renderLoanList(); }, 800);
+    } else {
+      alert((json && json.message) ? json.message : '返却に失敗しました');
+    }
+  });
+}
+
 let addEditRow = null;      // 編集対象の在庫マスター行番号（nullなら新規追加）
 let addEditOrigModel = '';  // 誤更新防止用の元型番
 function openAddModal() {
@@ -1590,6 +1766,7 @@ function epAvailFor(name) {
   };
   (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date)));
   (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut)));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut)));
   evs.sort((a,b) => a.t - b.t);
   let cur = 0, peak = 0, prevT = -Infinity;
   for (const ev of evs) {
@@ -1922,6 +2099,12 @@ function applyData(json) {
         out:     out,
         special: special,
         status:  status,
+        // 拠点間 在庫連動（バッジ表示用）
+        lentOut:      parseInt(r.lentOut)  || 0,
+        lentTo:       String(r.lentTo || ''),
+        borrowed:     parseInt(r.borrowed) || 0,
+        borrowedFrom: String(r.borrowedFrom || ''),
+        synthetic:    !!r.synthetic,
       };
     });
   }
@@ -1974,6 +2157,12 @@ function applyData(json) {
 
   rentalRanking = json.rentalRanking || [];
   conflicts = json.conflicts || [];
+  // 拠点間 貸し借り（後方互換：旧形式の配列/未定義も吸収）
+  if (json.loans && !Array.isArray(json.loans)) {
+    loans = { out: json.loans.out || [], in: json.loans.in || [] };
+  } else {
+    loans = { out: [], in: [] };
+  }
   renderConflictBanner();
   if (currentTab === 'dashboard') renderDashboard();
 

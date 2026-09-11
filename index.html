@@ -45,6 +45,9 @@
           <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();resyncStock()"><i class="ti ti-calculator" aria-hidden="true" style="font-size:16px"></i> 在庫再計算</button>
           <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openErrorList()"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:16px"></i> エラー再投入</button>
           <div style="height:1px;background:var(--border);margin:6px 2px"></div>
+          <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();openLoanModal()"><i class="ti ti-transfer" aria-hidden="true" style="font-size:16px"></i> 拠点間貸出</button>
+          <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openLoanList()"><i class="ti ti-arrows-exchange" aria-hidden="true" style="font-size:16px"></i> 貸し借り一覧</button>
+          <div style="height:1px;background:var(--border);margin:6px 2px"></div>
           <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();location.href='https://kizai-kanri-tokyo.vercel.app'"><i class="ti ti-external-link" aria-hidden="true" style="font-size:16px"></i> 東京の機材管理を開く</button>
         </div>
       </div>
@@ -141,6 +144,40 @@
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-bulk-qty')">キャンセル</button>
         <button class="btn btn-primary" onclick="confirmBulkSpecial()">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 拠点間貸出モーダル -->
+  <div class="modal-backdrop" id="modal-loan">
+    <div class="modal" style="max-width:640px">
+      <h3><i class="ti ti-transfer" aria-hidden="true"></i> 拠点間貸出（<span id="loan-peer-label">相手拠点</span>へ）</h3>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">貸す機材の数量を入力してください。登録すると<span class="loan-peer-name">相手拠点</span>のアプリにも自動で反映されます（受注書のやり取り不要）。</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">搬出予定<input type="date" id="loan-dateout" class="inp" style="width:100%" oninput="loanRevalidateQty()"></label>
+        <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">返却予定<input type="date" id="loan-dateret" class="inp" style="width:100%" oninput="loanRevalidateQty()"></label>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">担当<input type="text" id="loan-staff" class="inp" style="width:100%" placeholder="担当者名"></label>
+        <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">備考<input type="text" id="loan-note" class="inp" style="width:100%" placeholder="任意"></label>
+      </div>
+      <input type="text" id="loan-search" class="inp" style="width:100%;margin-bottom:8px" placeholder="型番・カテゴリ・メーカーで絞り込み" oninput="renderLoanItems()">
+      <div id="loan-item-list" style="max-height:44vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px"></div>
+      <div id="loan-status" style="font-size:13px;margin-top:8px;min-height:18px"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-loan')">キャンセル</button>
+        <button class="btn btn-primary" id="loan-submit-btn" onclick="submitLoan()"><i class="ti ti-send" aria-hidden="true"></i> 貸出登録</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 貸し借り一覧モーダル -->
+  <div class="modal-backdrop" id="modal-loan-list">
+    <div class="modal" style="max-width:640px">
+      <h3><i class="ti ti-arrows-exchange" aria-hidden="true"></i> 拠点間 貸し借り一覧</h3>
+      <div id="loan-list-body" style="max-height:60vh;overflow-y:auto"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-loan-list')">閉じる</button>
       </div>
     </div>
   </div>

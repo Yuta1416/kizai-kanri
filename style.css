@@ -276,6 +276,17 @@ tr:hover td { background: var(--bg3); }
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
 }
+/* 汎用インプット（拠点間貸出モーダル等） */
+.inp {
+  font-family: var(--font); font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg); color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inp:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+#loan-item-list .loan-in-qty { font-size: 13px; }
 .fr textarea { height: 78px; resize: vertical; }
 /* 「これかも？」候補チップ */
 .add-sug { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
