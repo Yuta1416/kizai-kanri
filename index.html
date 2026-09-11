@@ -45,9 +45,6 @@
           <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();resyncStock()"><i class="ti ti-calculator" aria-hidden="true" style="font-size:16px"></i> 在庫再計算</button>
           <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openErrorList()"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:16px"></i> エラー再投入</button>
           <div style="height:1px;background:var(--border);margin:6px 2px"></div>
-          <button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:4px;font-size:14px;gap:8px" onclick="closeMoreMenu();openLoanModal()"><i class="ti ti-transfer" aria-hidden="true" style="font-size:16px"></i> 拠点間貸出</button>
-          <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();openLoanList()"><i class="ti ti-arrows-exchange" aria-hidden="true" style="font-size:16px"></i> 貸し借り一覧</button>
-          <div style="height:1px;background:var(--border);margin:6px 2px"></div>
           <button class="btn" style="width:100%;justify-content:flex-start;font-size:14px;gap:8px" onclick="closeMoreMenu();location.href='https://kizai-kanri-tokyo.vercel.app'"><i class="ti ti-external-link" aria-hidden="true" style="font-size:16px"></i> 東京の機材管理を開く</button>
         </div>
       </div>
@@ -73,6 +70,7 @@
     <button class="tab" data-tab="out" onclick="switchTab('out',this)"><i class="ti ti-arrow-up-right" aria-hidden="true"></i> 持ち出し中</button>
     <button class="tab" data-tab="reserve" onclick="switchTab('reserve',this)"><i class="ti ti-calendar-time" aria-hidden="true"></i> 持ち出し予約</button>
     <button class="tab" data-tab="special" onclick="switchTab('special',this)"><i class="ti ti-tool" aria-hidden="true"></i> 修理・レンタル・不在</button>
+    <button class="tab" data-tab="loan" onclick="switchTab('loan',this)"><i class="ti ti-arrows-exchange" aria-hidden="true"></i> 拠点間貸し借り</button>
     <button class="tab" data-tab="history" onclick="switchTab('history',this)"><i class="ti ti-history" aria-hidden="true"></i> 履歴</button>
   </nav>
 
@@ -203,6 +201,14 @@
 
   <div id="view-reserve" style="display:none">
     <div id="reserve-container"></div>
+  </div>
+
+  <div id="view-loan" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--text2)">大阪⇔東京の機材の貸し借り。登録すると相手拠点のアプリにも自動で反映されます。</div>
+      <button class="btn btn-primary" onclick="openLoanModal()"><i class="ti ti-transfer" aria-hidden="true"></i> ＋ 拠点間貸出</button>
+    </div>
+    <div id="loan-tab-body"></div>
   </div>
 
   <div id="view-history" style="display:none">
@@ -387,6 +393,7 @@
   <button class="bnav-item" data-tab="inventory" onclick="switchTab('inventory',this)"><i class="ti ti-box" aria-hidden="true"></i><span>在庫</span></button>
   <button class="bnav-item" data-tab="out" onclick="switchTab('out',this)"><i class="ti ti-arrow-up-right" aria-hidden="true"></i><span>持出中</span></button>
   <button class="bnav-item" data-tab="reserve" onclick="switchTab('reserve',this)"><i class="ti ti-calendar-time" aria-hidden="true"></i><span>予約</span></button>
+  <button class="bnav-item" data-tab="loan" onclick="switchTab('loan',this)"><i class="ti ti-arrows-exchange" aria-hidden="true"></i><span>貸し借り</span></button>
   <button class="bnav-item" data-tab="history" onclick="switchTab('history',this)"><i class="ti ti-history" aria-hidden="true"></i><span>履歴</span></button>
 </nav>
 

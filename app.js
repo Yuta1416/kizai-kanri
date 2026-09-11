@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v72';
+const APP_VERSION = 'v73';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -182,7 +182,7 @@ function calcSt(item) {
   if (a <= 0) return 'OUT';
   return 'PARTIAL';
 }
-function avail(item) { return Math.max(0, item.total - item.out - item.special); }
+function avail(item) { return Math.max(0, item.total - item.out - item.special - (item.lentOut||0)); }
 function badge(st) {
   const c = SC[st] || SC['IN'];
   return `<span class="badge ${c.cls}"><i class="ti ${c.icon}"></i>${st}</span>`;
@@ -283,6 +283,7 @@ function render() {
   if (currentTab === 'out')       renderOut();
   if (currentTab === 'special')   renderSpecial();
   if (currentTab === 'reserve')   renderReservations();
+  if (currentTab === 'loan')      renderLoanTab();
   if (currentTab === 'history')   renderHistory();
   if (currentTab === 'dashboard') renderDashboard();
 }
@@ -877,7 +878,7 @@ function switchTab(tab, el) {
   currentTab = tab;
   // 上部タブ＋スマホ下部ボトムナビの両方を data-tab で同期
   document.querySelectorAll('[data-tab]').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
-  ['all','inventory','out','special','reserve','history','dashboard'].forEach(t => {
+  ['all','inventory','out','special','reserve','loan','history','dashboard'].forEach(t => {
     const v = document.getElementById('view-'+t);
     if (v) v.style.display = t===tab ? 'block' : 'none';
   });
@@ -1242,55 +1243,59 @@ function submitLoan() {
   });
   if (!items.length) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='貸す機材の数量を入力してください'; } return; }
   if (hasBad) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='空きを超えている機材があります（赤枠）'; } return; }
-  const btn = document.getElementById('loan-submit-btn'); if (btn) { btn.disabled = true; }
-  if (st) { st.style.color='var(--text2)'; st.textContent='登録中…'; }
+  const btn = document.getElementById('loan-submit-btn');
+  if (btn && !btn.dataset.orig) btn.dataset.orig = btn.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2 spinning" aria-hidden="true"></i> 登録中…'; }
+  if (st) { st.style.color='var(--text2)'; st.textContent='登録中…（数秒かかることがあります）'; }
+  const restoreBtn = () => { if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || '貸出登録'; } };
   const payload = { items, dateOut, dateReturn, staff:(document.getElementById('loan-staff')||{}).value||'', note:(document.getElementById('loan-note')||{}).value||'' };
   gasJsonp({ action:'loan', data: JSON.stringify(payload) }, function(json) {
-    if (btn) btn.disabled = false;
     if (json && json.status === 'ok') {
-      closeModal('modal-loan');
-      if (typeof showToast === 'function') showToast(PEER_LABEL + 'へ貸出登録しました');
-      reloadData();
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i> 登録しました'; }
+      if (st) { st.style.color='var(--success-text, #16a34a)'; st.textContent = '✓ ' + PEER_LABEL + 'へ貸出登録しました'; }
+      setTimeout(function(){ restoreBtn(); closeModal('modal-loan'); reloadData(); if (currentTab==='loan') renderLoanTab(); }, 1000);
     } else {
-      if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent = (json && json.message) ? json.message : '登録に失敗しました'; }
+      restoreBtn();
+      if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent = (json && json.message) ? json.message : '登録に失敗しました（通信環境を確認して、もう一度お試しください）'; }
     }
   });
 }
-function openLoanList() {
-  renderLoanList();
-  openModal('modal-loan-list');
-}
-function renderLoanList() {
-  const box = document.getElementById('loan-list-body'); if (!box) return;
+// 拠点間 貸し借りタブの中身を描画
+function renderLoanTab() {
+  const box = document.getElementById('loan-tab-body'); if (!box) return;
   const out = (loans&&loans.out)||[], inn = (loans&&loans.in)||[];
   const rows = (arr, dir) => {
-    if (!arr.length) return `<div style="padding:10px 2px;color:var(--text2);font-size:13px">なし</div>`;
-    // loanId でまとめる
+    if (!arr.length) return `<div class="empty" style="padding:18px 4px;color:var(--text2);font-size:13px">${dir==='out'?'貸している機材はありません':'借りている機材はありません'}</div>`;
     const byId = {};
     arr.forEach(l => { (byId[l.loanId] = byId[l.loanId] || []).push(l); });
     return Object.keys(byId).map(id => {
       const g = byId[id]; const h = g[0];
-      const items = g.map(l => `${escHtml(l.model)} ×${l.qty}`).join('、');
-      const who = dir === 'out' ? `→ ${escHtml(h.peer)}` : `← ${escHtml(h.peer)}`;
-      return `<div style="padding:10px 2px;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;font-weight:600">${items}</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:2px">${who}　${escHtml(fmtDateDisp(h.dateOut))} 〜 ${escHtml(fmtDateDisp(h.dateReturn))}${h.staff?'　担当:'+escHtml(h.staff):''}</div>
-        <div style="margin-top:6px"><button class="btn" style="font-size:12px;padding:4px 10px" onclick="returnLoan('${id}')"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button></div>
+      const items = g.map(l => `${escHtml(l.model)} <span style="color:var(--text2)">×${l.qty}</span>`).join('　');
+      const who = dir === 'out' ? `<i class="ti ti-arrow-right"></i> ${escHtml(h.peer)}へ貸出中` : `<i class="ti ti-arrow-left"></i> ${escHtml(h.peer)}から借用中`;
+      return `<div class="item-card" style="cursor:default;align-items:flex-start">
+        <div class="item-card-info" style="flex:1">
+          <div class="item-card-name">${items}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">${who}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px"><i class="ti ti-calendar"></i> ${escHtml(fmtDateDisp(h.dateOut))} 〜 ${escHtml(fmtDateDisp(h.dateReturn))}${h.staff?'　担当:'+escHtml(h.staff):''}</div>
+        </div>
+        <button class="btn" style="font-size:13px;padding:6px 12px;white-space:nowrap" onclick="returnLoan('${id}')"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button>
       </div>`;
     }).join('');
   };
   box.innerHTML =
-    `<div style="font-weight:700;font-size:13px;margin:4px 0 6px">🔁 貸している（${PEER_LABEL}などへ）</div>` + rows(out, 'out') +
-    `<div style="font-weight:700;font-size:13px;margin:14px 0 6px">📥 借りている</div>` + rows(inn, 'in');
+    `<div class="card-section-label" style="margin-top:4px">🔁 貸している（${escHtml(PEER_LABEL)}へ）</div><div class="card-grid">` + rows(out, 'out') + `</div>` +
+    `<div class="card-section-label" style="margin-top:16px">📥 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>`;
 }
 function returnLoan(loanId) {
   if (!loanId) return;
   if (!confirm('この貸し借りを返却（両拠点から削除）します。よろしいですか？')) return;
+  const box = document.getElementById('loan-tab-body');
+  if (box) box.style.opacity = '0.5';
   gasJsonp({ action:'loan_return', loanId: loanId }, function(json) {
+    if (box) box.style.opacity = '';
     if (json && json.status === 'ok') {
-      if (typeof showToast === 'function') showToast('返却しました');
       reloadData();
-      setTimeout(function(){ if (document.getElementById('modal-loan-list').classList.contains('open')) renderLoanList(); }, 800);
+      setTimeout(function(){ if (currentTab==='loan') renderLoanTab(); }, 900);
     } else {
       alert((json && json.message) ? json.message : '返却に失敗しました');
     }
