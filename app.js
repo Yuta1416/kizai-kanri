@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v78';
+const APP_VERSION = 'v79';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2167,8 +2167,37 @@ function showLoading(on) {
   }
 }
 
-// キャッシュ廃止（常にGASから最新データを取得）
-try { localStorage.removeItem('kizai_data_cache'); } catch(e) {}
+// ============================================================
+// 起動を一瞬にするためのデータキャッシュ（前回の在庫を即表示→裏で最新に差し替え）
+//   ※GASのコールドスタート(10〜22秒)を体感ゼロにするのが目的。鮮度は「最終更新/更新中」で明示。
+// ============================================================
+const _CACHE_KEY = 'kizai_data_cache_v1';
+try { localStorage.removeItem('kizai_data_cache'); } catch(e) {} // 旧キー掃除
+let _lastDataTs = 0;
+function saveDataCache(json) {
+  try {
+    localStorage.setItem(_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), json: {
+      inventory: json.inventory, out: json.out, specialItems: json.specialItems,
+      reservations: json.reservations, loans: json.loans, conflicts: json.conflicts,
+      rentalRanking: json.rentalRanking
+    }}));
+  } catch(e) {}
+}
+function loadDataCache() {
+  try { const raw = localStorage.getItem(_CACHE_KEY); if (!raw) return null; const o = JSON.parse(raw); return (o && o.json && o.json.inventory) ? o : null; } catch(e) { return null; }
+}
+// 「最終更新 HH:MM」「更新中…」の表示（ヘッダーのタイトル横）
+function setLastUpdated(ts, updating) {
+  if (ts) _lastDataTs = ts;
+  const el = document.getElementById('last-updated'); if (!el) return;
+  const t = _lastDataTs ? new Date(_lastDataTs) : null;
+  const hhmm = t ? (t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0')) : '';
+  if (updating) {
+    el.innerHTML = '<i class="ti ti-loader-2 spinning" aria-hidden="true" style="font-size:11px"></i> 更新中…' + (hhmm ? ` <span style="opacity:.65">(最終 ${hhmm})</span>` : '');
+  } else {
+    el.textContent = hhmm ? ('最終更新 ' + hhmm) : '';
+  }
+}
 
 function applyData(json) {
   if (json.inventory && json.inventory.length > 0) {
@@ -2339,6 +2368,7 @@ function fetchFromSpreadsheet() {
   //   GASは同一デプロイへの同時実行を直列化するため、action=all と競合して開くのが遅くなる。
   //   → action=all を最優先で取得し、スタッフシフトは成功後に読む（下の callback）。
   const _retry = arguments[0] || 0;
+  if (_retry === 0) setLastUpdated(null, true); // 取得中は「更新中…」（キャッシュ表示中でも分かるように）
   const cbName = 'gasCallback_' + Date.now();
   let settled = false;
   const script = document.createElement('script');
@@ -2357,10 +2387,11 @@ function fetchFromSpreadsheet() {
       setTimeout(function() { fetchFromSpreadsheet(_retry + 1); }, 1500); // ローディング表示は維持したまま再試行
     } else {
       showLoading(false);
+      setLastUpdated(null, false); // 「更新中…」を止める（キャッシュ表示のまま最終更新時刻を残す）
       if (!dataLoaded) showLoadError(); else render();
     }
   };
-  const timer = setTimeout(onFail, 20000); // 応答が来ない/GASコールド時の保険
+  const timer = setTimeout(onFail, 35000); // 応答が来ない/GASコールド時の保険（東京はコールドで20秒超あり→余裕を持たせる）
 
   window[cbName] = function(json) {
     if (settled) return;
@@ -2370,6 +2401,8 @@ function fetchFromSpreadsheet() {
     if (json && json.status === 'ok') {
       applyData(json);
       dataLoaded = true;
+      saveDataCache(json);              // 次回起動で即表示するため保存
+      setLastUpdated(Date.now(), false); // 「最終更新 HH:MM」
       render();
       if (currentTab === 'dashboard') renderDashboard();
       if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
@@ -3182,11 +3215,25 @@ function reloadData() {
   }, 1500);
 }
 
-// 起動時：まず action=all だけを取得（予約もconflictも含まれるので個別取得は不要）。
-//   fetchReservations()（=action=all と重複）と fetchShortageLog()（=到達不能なダッシュボード専用）は
-//   起動時に発火しない＝GASの同時実行競合を減らして開くのを速くする。
-showLoading(true);
-fetchFromSpreadsheet();
+// 起動時：前回の在庫が localStorage にあれば「即表示」→ 裏で最新を取得して差し替え。
+//   これで GAS のコールドスタート(10〜22秒)を待たずに一瞬で開く。鮮度は「最終更新/更新中」で明示。
+//   ※fetchReservations()（=action=all と重複）と fetchShortageLog()（=到達不能なダッシュボード専用）は
+//     起動時に発火しない＝GASの同時実行競合を減らして開くのを速くする。
+(function initialLoad() {
+  const cached = loadDataCache();
+  if (cached && cached.json) {
+    try {
+      applyData(cached.json);   // 前回データで即描画
+      dataLoaded = true;
+      _lastDataTs = cached.savedAt || 0;
+      render();
+      showLoading(false);       // ローディング画面を出さずに即表示
+    } catch (e) { showLoading(true); }
+  } else {
+    showLoading(true);          // 初回（キャッシュ無し）は従来どおりローディング表示
+  }
+  fetchFromSpreadsheet();       // いずれにせよ裏で最新を取得
+})();
 // 5分ごとに自動更新
 setInterval(fetchFromSpreadsheet, 300000);
 setInterval(checkAutoReturn, 60000);
