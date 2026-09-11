@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v74';
+const APP_VERSION = 'v75';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -172,6 +172,9 @@ let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1;
 let rentalRanking = [];
 let conflicts = [];
 let loans = { out: [], in: [] }; // 拠点間 貸し借り：out=自拠点が貸している / in=借りている
+let loanHistory = [];        // 拠点間 貸し借りの履歴（専用タブ用）
+let _loanHistLoaded = false; // 一度でも取得できたか
+let _loanHistFetching = false;
 let pdDateKey = '';
 let pdProject = '';
 
@@ -675,6 +678,7 @@ function _renderHistoryInner(container) {
   const monthGroups = {};
   [...history].reverse().forEach(h => {
     if (SPECIAL_ACTIONS.has(h.action)) return;
+    if (h.kind === '拠点間') return; // 拠点間 貸し借りは専用タブの履歴に表示
     if (!h.project) return;
     if (q) {
       const hit = [h.project, h.staff, h.model, h.note].some(v => String(v||'').toLowerCase().includes(q));
@@ -886,6 +890,7 @@ function switchTab(tab, el) {
   render();
   updateBulkBar();
   if (tab === 'history') fetchHistory(); // 履歴はタブを開いた時だけ取得（初回表示を高速化）
+  if (tab === 'loan') fetchLoanHistory(); // 拠点間の履歴もタブを開いた時に取得
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
   if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
   // ビュー切替時は最上部へスクロール（スマホで見やすく）
@@ -1253,7 +1258,7 @@ function submitLoan() {
     if (json && json.status === 'ok') {
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i> 登録しました'; }
       if (st) { st.style.color='var(--success-text, #16a34a)'; st.textContent = '✓ ' + PEER_LABEL + 'へ貸出登録しました'; }
-      setTimeout(function(){ restoreBtn(); closeModal('modal-loan'); reloadData(); if (currentTab==='loan') renderLoanTab(); }, 1000);
+      setTimeout(function(){ restoreBtn(); closeModal('modal-loan'); reloadData(); fetchLoanHistory(); if (currentTab==='loan') renderLoanTab(); }, 1000);
     } else {
       restoreBtn();
       if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent = (json && json.message) ? json.message : '登録に失敗しました（通信環境を確認して、もう一度お試しください）'; }
@@ -1270,21 +1275,73 @@ function renderLoanTab() {
     arr.forEach(l => { (byId[l.loanId] = byId[l.loanId] || []).push(l); });
     return Object.keys(byId).map(id => {
       const g = byId[id]; const h = g[0];
-      const items = g.map(l => `${escHtml(l.model)} <span style="color:var(--text2)">×${l.qty}</span>`).join('　');
+      const totalQty = g.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+      const summary = g.length === 1
+        ? `${escHtml(g[0].model)} <span style="color:var(--text2)">×${g[0].qty}</span>`
+        : `${escHtml(g[0].model)} 他${g.length-1}件 <span style="color:var(--text2)">（計${totalQty}台）</span>`;
       const who = dir === 'out' ? `<i class="ti ti-arrow-right"></i> ${escHtml(h.peer)}へ貸出中` : `<i class="ti ti-arrow-left"></i> ${escHtml(h.peer)}から借用中`;
-      return `<div class="item-card" style="cursor:default;align-items:flex-start">
+      return `<div class="item-card" style="cursor:pointer;align-items:center" onclick="openLoanDetail('${id}','${dir}')">
         <div class="item-card-info" style="flex:1">
-          <div class="item-card-name">${items}</div>
+          <div class="item-card-name">${summary}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:4px">${who}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px"><i class="ti ti-calendar"></i> ${escHtml(fmtDateDisp(h.dateOut))} 〜 ${escHtml(fmtDateDisp(h.dateReturn))}${h.staff?'　担当:'+escHtml(h.staff):''}</div>
         </div>
-        <button class="btn" style="font-size:13px;padding:6px 12px;white-space:nowrap" onclick="returnLoan('${id}')"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn" style="font-size:13px;padding:6px 12px;white-space:nowrap" onclick="event.stopPropagation();returnLoan('${id}')"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button>
+          <i class="ti ti-chevron-right" style="color:var(--text2)" aria-hidden="true"></i>
+        </div>
       </div>`;
     }).join('');
   };
+  // 履歴セクション（拠点間 貸し借り専用）
+  const actIcon = a => a==='拠点間貸出' ? '🔁' : (a==='拠点間自動返却' ? '🔄' : '↩️');
+  let histHtml;
+  if (!_loanHistLoaded && !loanHistory.length) {
+    histHtml = `<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">履歴を読み込み中...</div>`;
+  } else if (!loanHistory.length) {
+    histHtml = `<div class="empty" style="padding:16px 4px;color:var(--text2);font-size:13px">履歴はまだありません</div>`;
+  } else {
+    histHtml = loanHistory.map(h => `
+      <div style="padding:8px 2px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px"><span style="font-weight:600">${actIcon(h.action)} ${escHtml(h.action.replace('拠点間',''))}</span>　${escHtml(h.model)} <span style="color:var(--text2)">×${h.qty}</span>　<span style="color:var(--text2)">${escHtml(h.peer||'')}</span></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(fmtDateDisp(h.date))}${h.staff?'　担当:'+escHtml(h.staff):''}${h.note?'　'+escHtml(h.note):''}</div>
+      </div>`).join('');
+  }
   box.innerHTML =
     `<div class="card-section-label" style="margin-top:4px">🔁 貸している（${escHtml(PEER_LABEL)}へ）</div><div class="card-grid">` + rows(out, 'out') + `</div>` +
-    `<div class="card-section-label" style="margin-top:16px">📥 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>`;
+    `<div class="card-section-label" style="margin-top:16px">📥 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>` +
+    `<div class="card-section-label" style="margin-top:16px"><i class="ti ti-history"></i> 貸し借りの履歴</div><div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 12px;max-height:340px;overflow-y:auto">` + histHtml + `</div>`;
+}
+// 貸し借り1件の詳細（何を何台・期間・担当・備考）を表示
+function openLoanDetail(loanId, dir) {
+  const isOut = dir === 'out';
+  const src = isOut ? ((loans&&loans.out)||[]) : ((loans&&loans.in)||[]);
+  const g = src.filter(l => l.loanId === loanId);
+  if (!g.length) { alert('この貸し借りは既に返却/更新されています。'); if (currentTab==='loan') renderLoanTab(); return; }
+  const h = g[0];
+  const title = document.getElementById('loan-detail-title');
+  const meta = document.getElementById('loan-detail-meta');
+  const body = document.getElementById('loan-detail-body');
+  if (title) title.innerHTML = isOut
+    ? `<i class="ti ti-arrow-right" aria-hidden="true"></i> ${escHtml(h.peer)}へ貸出中`
+    : `<i class="ti ti-arrow-left" aria-hidden="true"></i> ${escHtml(h.peer)}から借用中`;
+  const totalQty = g.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+  if (meta) meta.innerHTML =
+    `<div><i class="ti ti-calendar"></i> 搬出 ${escHtml(fmtDateDisp(h.dateOut))} 〜 返却予定 ${escHtml(fmtDateDisp(h.dateReturn))}</div>`
+    + (h.staff ? `<div style="margin-top:3px"><i class="ti ti-user"></i> 担当: ${escHtml(h.staff)}</div>` : '')
+    + (h.note ? `<div style="margin-top:3px"><i class="ti ti-note"></i> 備考: ${escHtml(h.note)}</div>` : '')
+    + `<div style="margin-top:3px"><i class="ti ti-package"></i> ${g.length}品目・計${totalQty}台</div>`;
+  if (body) body.innerHTML = g.map(l => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 2px;border-bottom:0.5px solid var(--border)">
+      <div style="min-width:0">
+        <div style="font-size:14px;font-weight:600">${escHtml(l.model)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${escHtml(l.category||'')}${l.maker?' ・ '+escHtml(l.maker):''}</div>
+      </div>
+      <div style="font-size:15px;font-weight:700;white-space:nowrap">×${parseInt(l.qty)||0}</div>
+    </div>`).join('');
+  const rbtn = document.getElementById('loan-detail-return-btn');
+  if (rbtn) rbtn.onclick = function(){ closeModal('modal-loan-detail'); returnLoan(loanId); };
+  openModal('modal-loan-detail');
 }
 function returnLoan(loanId) {
   if (!loanId) return;
@@ -1295,6 +1352,7 @@ function returnLoan(loanId) {
     if (box) box.style.opacity = '';
     if (json && json.status === 'ok') {
       reloadData();
+      fetchLoanHistory();
       setTimeout(function(){ if (currentTab==='loan') renderLoanTab(); }, 900);
     } else {
       alert((json && json.message) ? json.message : '返却に失敗しました');
@@ -2220,6 +2278,26 @@ function fetchHistory() {
   s.id = 'jsonp_' + cb;
   s.src = GAS_API_URL + '?action=history&callback=' + cb;
   s.onerror = function() { delete window[cb]; s.remove(); _historyFetching = false; if (currentTab === 'history') renderHistory(); };
+  document.body.appendChild(s);
+}
+
+// 拠点間 貸し借りの履歴を取得（貸し借りタブを開いた時）
+function fetchLoanHistory() {
+  if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') { if (currentTab==='loan') renderLoanTab(); return; }
+  if (_loanHistFetching) return;
+  _loanHistFetching = true;
+  const cb = 'loanHistCb_' + Date.now();
+  window[cb] = function(json) {
+    delete window[cb];
+    const el = document.getElementById('jsonp_' + cb); if (el) el.remove();
+    _loanHistFetching = false;
+    if (json && json.status === 'ok' && Array.isArray(json.loanHistory)) { loanHistory = json.loanHistory; _loanHistLoaded = true; }
+    if (currentTab === 'loan') renderLoanTab();
+  };
+  const s = document.createElement('script');
+  s.id = 'jsonp_' + cb;
+  s.src = GAS_API_URL + '?action=loan_history&callback=' + cb;
+  s.onerror = function() { delete window[cb]; s.remove(); _loanHistFetching = false; if (currentTab === 'loan') renderLoanTab(); };
   document.body.appendChild(s);
 }
 

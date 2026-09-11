@@ -168,13 +168,15 @@
     </div>
   </div>
 
-  <!-- 貸し借り一覧モーダル -->
-  <div class="modal-backdrop" id="modal-loan-list">
+  <!-- 貸し借り 詳細モーダル -->
+  <div class="modal-backdrop" id="modal-loan-detail">
     <div class="modal" style="max-width:640px">
-      <h3><i class="ti ti-arrows-exchange" aria-hidden="true"></i> 拠点間 貸し借り一覧</h3>
-      <div id="loan-list-body" style="max-height:60vh;overflow-y:auto"></div>
+      <h3 id="loan-detail-title"><i class="ti ti-arrows-exchange" aria-hidden="true"></i> 貸し借りの詳細</h3>
+      <div id="loan-detail-meta" style="font-size:13px;color:var(--text2);margin-bottom:12px"></div>
+      <div id="loan-detail-body" style="max-height:56vh;overflow-y:auto"></div>
       <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-loan-list')">閉じる</button>
+        <button class="btn" onclick="closeModal('modal-loan-detail')">閉じる</button>
+        <button class="btn btn-primary" id="loan-detail-return-btn"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> 返却</button>
       </div>
     </div>
   </div>
