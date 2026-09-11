@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v75';
+const APP_VERSION = 'v76';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1293,24 +1293,51 @@ function renderLoanTab() {
       </div>`;
     }).join('');
   };
-  // 履歴セクション（拠点間 貸し借り専用）
-  const actIcon = a => a==='拠点間貸出' ? '🔁' : (a==='拠点間自動返却' ? '🔄' : '↩️');
-  let histHtml;
-  if (!_loanHistLoaded && !loanHistory.length) {
-    histHtml = `<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">履歴を読み込み中...</div>`;
-  } else if (!loanHistory.length) {
-    histHtml = `<div class="empty" style="padding:16px 4px;color:var(--text2);font-size:13px">履歴はまだありません</div>`;
-  } else {
-    histHtml = loanHistory.map(h => `
-      <div style="padding:8px 2px;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px"><span style="font-weight:600">${actIcon(h.action)} ${escHtml(h.action.replace('拠点間',''))}</span>　${escHtml(h.model)} <span style="color:var(--text2)">×${h.qty}</span>　<span style="color:var(--text2)">${escHtml(h.peer||'')}</span></div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(fmtDateDisp(h.date))}${h.staff?'　担当:'+escHtml(h.staff):''}${h.note?'　'+escHtml(h.note):''}</div>
-      </div>`).join('');
-  }
   box.innerHTML =
     `<div class="card-section-label" style="margin-top:4px">🔁 貸している（${escHtml(PEER_LABEL)}へ）</div><div class="card-grid">` + rows(out, 'out') + `</div>` +
     `<div class="card-section-label" style="margin-top:16px">📥 借りている</div><div class="card-grid">` + rows(inn, 'in') + `</div>` +
-    `<div class="card-section-label" style="margin-top:16px"><i class="ti ti-history"></i> 貸し借りの履歴</div><div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 12px;max-height:340px;overflow-y:auto">` + histHtml + `</div>`;
+    `<div class="card-section-label" style="margin-top:16px"><i class="ti ti-history"></i> 貸し借りの履歴</div>` + renderLoanHistoryHtml();
+}
+// 貸し借り履歴を年月ごとの折りたたみ（履歴タブと同じ形式）で描画
+function renderLoanHistoryHtml() {
+  if (!_loanHistLoaded && !loanHistory.length) {
+    return `<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">履歴を読み込み中...</div>`;
+  }
+  if (!loanHistory.length) {
+    return `<div class="empty" style="padding:16px 4px;color:var(--text2);font-size:13px">履歴はまだありません</div>`;
+  }
+  const actIcon = a => a==='拠点間貸出' ? '🔁' : (a==='拠点間自動返却' ? '🔄' : '↩️');
+  const actCls  = a => a==='拠点間貸出' ? 's-out' : 's-info';
+  // 年月でグループ化（loanHistory は新しい順）
+  const groups = {}; const order = [];
+  loanHistory.forEach(h => {
+    let ym = '日付不明';
+    const d = new Date(h.date);
+    if (!isNaN(d)) ym = d.getFullYear() + '年' + (d.getMonth()+1) + '月';
+    else { const m = String(h.date).match(/(\d+)年(\d+)月/) || String(h.date).match(/(\d{4})\/(\d{1,2})/); if (m) ym = m[1] + '年' + parseInt(m[2]) + '月'; }
+    if (!groups[ym]) { groups[ym] = []; order.push(ym); }
+    groups[ym].push(h);
+  });
+  return order.map(ym => {
+    const rowsHtml = groups[ym].map(h => `
+      <div class="proj-item-row">
+        <span class="badge ${actCls(h.action)}" style="font-size:10px">${actIcon(h.action)} ${escHtml(String(h.action||'').replace('拠点間',''))}</span>
+        <span class="proj-item-name">${escHtml(h.model)}${h.peer?`<span style="font-size:11px;color:var(--text2);margin-left:6px">${escHtml(h.peer)}</span>`:''}</span>
+        <span class="proj-item-qty">${(h.qty|0)>0?'×'+(h.qty|0):''}</span>
+        <span style="font-size:11px;color:var(--text2)">${escHtml(fmtDateDisp(h.date))}${h.staff?'・'+escHtml(h.staff):''}${h.note?'・'+escHtml(h.note):''}</span>
+      </div>`).join('');
+    return `
+      <div class="proj-group" style="margin-bottom:10px">
+        <div class="proj-group-head" onclick="toggleGroup(this)">
+          <div class="proj-group-left">
+            <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
+            <span class="proj-group-name"><i class="ti ti-calendar" style="font-size:14px;margin-right:4px"></i>${ym}</span>
+          </div>
+          <div class="proj-group-right"><span class="proj-count">${groups[ym].length}件</span></div>
+        </div>
+        <div class="proj-group-body" style="padding:6px 8px;display:none">${rowsHtml}</div>
+      </div>`;
+  }).join('');
 }
 // 貸し借り1件の詳細（何を何台・期間・担当・備考）を表示
 function openLoanDetail(loanId, dir) {
