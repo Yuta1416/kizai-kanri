@@ -253,7 +253,7 @@
   <div class="modal">
     <h3><i class="ti ti-arrow-up-right"></i> 持ち出し申請</h3>
     <div class="fr"><label>機材</label><input id="co-item" readonly></div>
-    <div class="fr"><label>持ち出し数（残数: <span id="co-avail"></span>）</label><input type="number" id="co-qty" min="1" value="1"></div>
+    <div class="fr"><label>持ち出し数（残数: <span id="co-avail"></span>）</label><span class="stepper"><button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button><input type="number" id="co-qty" class="step-input" min="1" value="1" oninput="syncStepper(this)"><button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button></span></div>
     <div class="fr"><label>案件名</label><input id="co-proj" placeholder="例: ○○ライブ"></div>
     <div class="fr"><label>担当者</label><input id="co-staff" placeholder="担当者名"></div>
     <div class="fr"><label>返却予定日時（例: 2026/5/28 23:00）</label><input id="co-ret" placeholder="未設定の場合は手動返却"></div>
@@ -275,7 +275,7 @@
         <option value="長期不在">長期不在</option>
       </select>
     </div>
-    <div class="fr"><label>数量</label><input type="number" id="sp-qty" min="1" value="1"></div>
+    <div class="fr"><label>数量</label><span class="stepper"><button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button><input type="number" id="sp-qty" class="step-input" min="1" value="1" oninput="syncStepper(this)"><button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button></span></div>
     <div class="fr"><label>備考（預け先・返却予定・理由等）</label><textarea id="sp-note" placeholder="例: ○○修理店 預け日5/1 返却予定6/1"></textarea></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('modal-special')">キャンセル</button>
@@ -308,7 +308,7 @@
       <div id="add-maker-sug" class="add-sug"></div>
     </div>
     <div class="fr"><label>型番・品名</label><input id="add-model" placeholder="例: SM58" oninput="addCheckDup(this);renderSug('model',this.value)"><div id="add-model-sug" class="add-sug"></div></div>
-    <div class="fr"><label>総在庫数</label><input type="number" id="add-qty" min="1" value="1"></div>
+    <div class="fr"><label>総在庫数</label><span class="stepper"><button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button><input type="number" id="add-qty" class="step-input" min="1" value="1" oninput="syncStepper(this)"><button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button></span></div>
     <div class="fr"><label>備考</label><input id="add-note" placeholder="任意"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('modal-add')">キャンセル</button>
@@ -321,7 +321,7 @@
   <div class="modal">
     <h3><i class="ti ti-arrow-down-left"></i> 返却処理</h3>
     <div class="fr"><label>機材</label><input id="ret-item" readonly></div>
-    <div class="fr"><label>返却数</label><input type="number" id="ret-qty" min="1" value="1"></div>
+    <div class="fr"><label>返却数</label><span class="stepper"><button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button><input type="number" id="ret-qty" class="step-input" min="1" value="1" oninput="syncStepper(this)"><button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button></span></div>
     <div class="fr"><label>備考</label><input id="ret-note" placeholder="任意"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('modal-return')">キャンセル</button>

@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v83';
+const APP_VERSION = 'v84';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -200,6 +200,45 @@ function loanBadge(item) {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// 数量ステッパー（サイト共通）：− / 入力 / ＋ を1つの部品に統一
+//   既存の <input type="number"> を stepperInput() で包むだけ。
+//   ＋/− は input の min/max を尊重し、変更後に input イベントを発火して
+//   既存の oninput 検証・状態更新をそのまま活かす。
+// ============================================================
+function _stepBound(input, which) {
+  const v = input && input.getAttribute(which);
+  if (v === null || v === '' || v === undefined) return which === 'min' ? 0 : Infinity;
+  const n = parseInt(v); return isNaN(n) ? (which === 'min' ? 0 : Infinity) : n;
+}
+function qtyStep(btn, delta) {
+  const wrap = btn.closest('.stepper'); if (!wrap) return;
+  const input = wrap.querySelector('input'); if (!input || input.disabled) return;
+  const min = _stepBound(input, 'min'), max = _stepBound(input, 'max');
+  let v = (parseInt(input.value) || 0) + delta;
+  if (v < min) v = min; if (v > max) v = max;
+  input.value = v;
+  input.dispatchEvent(new Event('input', { bubbles: true })); // 既存の検証/状態更新を発火
+  syncStepper(input);
+}
+// ＋/− の有効・無効を現在値と min/max から同期
+function syncStepper(input) {
+  const wrap = input && input.closest ? input.closest('.stepper') : null; if (!wrap) return;
+  const min = _stepBound(input, 'min'), max = _stepBound(input, 'max');
+  const v = parseInt(input.value) || 0;
+  const btns = wrap.querySelectorAll('.step-btn');
+  if (btns[0]) btns[0].disabled = (v <= min);
+  if (btns[1]) btns[1].disabled = (v >= max);
+}
+// 完成した <input class="step-input" ...> HTMLをステッパーで包んで返す（動的生成用）
+function stepperHtml(inputHtml, sm) {
+  return `<span class="stepper${sm ? ' sm' : ''}">`
+    + `<button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button>`
+    + inputHtml
+    + `<button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button>`
+    + `</span>`;
 }
 
 // 車種→カレンダー色クラス（複数車両対応）
@@ -417,8 +456,7 @@ function applyBulkSpecial() {
     return `<div class="bulk-qty-row">
       <div class="bulk-qty-name">${escHtml(item.model)}<span class="bulk-qty-maker">${escHtml(item.maker)}</span></div>
       <div class="bulk-qty-ctrl">
-        <input type="number" class="bulk-qty-input" data-row="${item.row}" data-max="${av}" value="${av}" min="0" max="${av}"
-               onclick="event.stopPropagation()">
+        ${stepperHtml(`<input type="number" class="step-input bulk-qty-input" data-row="${item.row}" data-max="${av}" value="${av}" min="0" max="${av}" inputmode="numeric" oninput="syncStepper(this)">`)}
         <span class="bulk-qty-avail">/ ${av}</span>
       </div>
     </div>`;
@@ -955,6 +993,7 @@ function openCheckout(idx) {
   document.getElementById('co-avail').textContent=avail(item);
   document.getElementById('co-qty').value=1;
   document.getElementById('co-qty').max=avail(item);
+  syncStepper(document.getElementById('co-qty'));
   ['co-proj','co-staff','co-ret'].forEach(id=>document.getElementById(id).value='');
   openModal('modal-checkout');
 }
@@ -1003,6 +1042,7 @@ function openReturn(idx) {
   document.getElementById('ret-item').value=`${item.maker} ${item.model}`;
   document.getElementById('ret-qty').value=item.out;
   document.getElementById('ret-qty').max=item.out;
+  syncStepper(document.getElementById('ret-qty'));
   document.getElementById('ret-note').value='';
   openModal('modal-return');
 }
@@ -1011,6 +1051,7 @@ function openReturnFromOut(oi) {
   document.getElementById('ret-item').value=o.model;
   document.getElementById('ret-qty').value=o.qty;
   document.getElementById('ret-qty').max=o.qty;
+  syncStepper(document.getElementById('ret-qty'));
   document.getElementById('ret-note').value='';
   openModal('modal-return');
 }
@@ -1051,6 +1092,7 @@ function openSpecial(idx) {
   document.getElementById('sp-item').value=`${item.maker} ${item.model}`;
   document.getElementById('sp-qty').value=1;
   document.getElementById('sp-qty').max=avail(item);
+  syncStepper(document.getElementById('sp-qty'));
   document.getElementById('sp-note').value=item.note||'';
   openModal('modal-special');
 }
@@ -1212,13 +1254,7 @@ function renderLoanItems() {
           <div class="loan-pick-name">${escHtml(it.model)}</div>
           <div class="loan-pick-sub">${sub}</div>
         </div>
-        <div class="loan-stepper">
-          <button type="button" class="loan-step-btn" onclick="loanStep(this,-1)" aria-label="減らす" disabled>−</button>
-          <input type="number" min="0" step="1" value="0" class="loan-in-qty" inputmode="numeric"
-            data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}"
-            oninput="loanMarkQty(this)" ${dis ? 'disabled' : ''}>
-          <button type="button" class="loan-step-btn" onclick="loanStep(this,1)" aria-label="増やす" ${dis ? 'disabled' : ''}>+</button>
-        </div>
+        ${stepperHtml(`<input type="number" min="0" max="${av}" step="1" value="0" class="step-input loan-in-qty" inputmode="numeric" data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}" oninput="loanMarkQty(this)" ${dis ? 'disabled' : ''}>`)}
       </div>`;
     }).join('');
     return `<div class="loan-pick-cat">${escHtml(cat)}</div>` + rows;
@@ -1226,16 +1262,6 @@ function renderLoanItems() {
   updateLoanPickSummary();
 }
 // ＋/− ボタン（タップで数量調整・空きで上限クランプ）
-function loanStep(btn, delta) {
-  const row = btn.closest('.loan-pick-row'); if (!row) return;
-  const input = row.querySelector('.loan-in-qty'); if (!input || input.disabled) return;
-  const item = (inv||[]).find(x => String(x.model) === input.getAttribute('data-model'));
-  const max = item ? loanAvailFor(item) : 0;
-  let v = (parseInt(input.value) || 0) + delta;
-  if (v < 0) v = 0; if (v > max) v = max;
-  input.value = v;
-  loanMarkQty(input);
-}
 function loanMarkQty(el) {
   const item = (inv||[]).find(x => String(x.model) === el.getAttribute('data-model'));
   if (!item) return false;
@@ -1246,13 +1272,9 @@ function loanMarkQty(el) {
   el.classList.toggle('bad', bad);
   el.title = bad ? `この期間に貸せる上限は ${max}台です` : '';
   el.max = max;
-  const row = el.closest('.loan-pick-row');
-  if (row) {
-    row.classList.toggle('on', qv > 0);
-    row.querySelector('.loan-stepper')?.classList.toggle('on-bad', bad);
-    const minus = row.querySelector('.loan-step-btn'); if (minus) minus.disabled = (qv <= 0);
-    const plus = row.querySelectorAll('.loan-step-btn')[1]; if (plus) plus.disabled = (qv >= max);
-  }
+  el.closest('.stepper')?.classList.toggle('bad', bad);
+  el.closest('.loan-pick-row')?.classList.toggle('on', qv > 0);
+  syncStepper(el);           // ＋/− の有効・無効を同期（共通ステッパー）
   updateLoanPickSummary();
   return bad;
 }
@@ -1438,6 +1460,7 @@ function openAddModal() {
   makerSel.innerHTML='<option value="">— 新規入力 —</option>'+makers.map(m=>`<option value="${m}">${m}</option>`).join('');
   ['add-cat','add-maker','add-model','add-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('add-qty').value=1;
+  syncStepper(document.getElementById('add-qty'));
   catSel.value=''; makerSel.value='';
   const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 赤枠リセット
   clearAddSug();  // 「これかも？」候補もクリア
@@ -1456,6 +1479,7 @@ function openEditItem(idx) {
   document.getElementById('add-maker').value = item.maker && item.maker!=='—' ? item.maker : '';
   document.getElementById('add-model').value = item.model||'';
   document.getElementById('add-qty').value = item.total||0;
+  syncStepper(document.getElementById('add-qty'));
   document.getElementById('add-note').value = item.note||'';
   const _am=document.getElementById('add-model'); if(_am) addCheckDup(_am);  // 自分自身は重複扱いしない
   clearAddSug();
@@ -1912,16 +1936,19 @@ function epAvailFor(name) {
 // 数量が空きを超えていたら赤枠に（own のみ対象）
 function epMarkQtyValidity(el, i) {
   const it = epItemsState[i];
+  const wrap = el.closest ? el.closest('.stepper') : null;
   if (!it || it.kind !== 'own' || !it.itemName || !epOwnInInventory(it.itemName)) {
-    el.style.borderColor=''; el.style.background=''; el.title=''; return false;
+    el.classList.remove('bad'); if (wrap) wrap.classList.remove('bad'); el.title=''; el.removeAttribute('max');
+    if (wrap) syncStepper(el); return false;
   }
   const max = epAvailFor(it.itemName);
   const q = parseInt(el.value) || 0;
   const bad = isFinite(max) && q > max;
-  el.style.borderColor = bad ? 'var(--danger, #dc2626)' : '';
-  el.style.background  = bad ? 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' : '';
+  el.classList.toggle('bad', bad);
+  if (wrap) wrap.classList.toggle('bad', bad);
   el.title = bad ? `在庫を超えています（この期間の空き: ${max}台）` : '';
-  if (isFinite(max)) el.max = max;
+  if (isFinite(max)) el.max = max; else el.removeAttribute('max');
+  if (wrap) syncStepper(el);
   return bad;
 }
 // 全数量欄を再検証（日付変更時などに呼ぶ）
@@ -1966,7 +1993,7 @@ function renderEpItems() {
       <span class="ep-badge ep-${it.kind}">${kindLabel[it.kind]||it.kind}</span>
       ${showMaker ? `<input class="ep-in-maker" ${makerListAttr} placeholder="会社/メーカー" value="${escHtml(it.maker||'')}" oninput="epItemsState[${i}].maker=this.value" onchange="epOnMakerChange(${i},this.value)">` : ''}
       <input class="ep-in-name" ${nameListAttr}${invalidStyle} placeholder="型番/機材名" value="${escHtml(it.itemName||'')}" oninput="epItemsState[${i}].itemName=this.value;epMarkNameValidity(this,${i});epMarkQtyValidity(this.parentNode.querySelector('.ep-in-qty'),${i})" onchange="epOnNameChange(${i},this.value)">
-      <input class="ep-in-qty" data-i="${i}" type="number" min="0"${qtyMaxAttr}${qtyStyle} value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0;epMarkQtyValidity(this,${i})">
+      ${stepperHtml(`<input class="ep-in-qty step-input${qOver?' bad':''}" data-i="${i}" type="number" min="0"${qtyMaxAttr} value="${it.qty}" oninput="epItemsState[${i}].qty=parseInt(this.value)||0;epMarkQtyValidity(this,${i})">`, true)}
       <button class="btn ep-del" onclick="epDeleteItem(${i})"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
