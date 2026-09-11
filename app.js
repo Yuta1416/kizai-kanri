@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v79';
+const APP_VERSION = 'v80';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1697,13 +1697,19 @@ document.addEventListener('click', (e) => {
 // 現在の荷だし表テンプレをアプリからダウンロード
 function downloadTemplate() {
   const btn = document.getElementById('template-dl-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 取得中...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2 spinning"></i> 取得中…'; }
   const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> 荷だし表DL'; } };
   const cbName = 'tplDl_' + Date.now();
+  let settled = false;
+  const cleanup = () => { try { delete window[cbName]; } catch(e){} const el = document.getElementById('jsonp_' + cbName); if (el) el.remove(); };
+  // GASがコールドだと数十秒かかることがある。固まったように見えないよう、途中でヒントを出し、最終的にタイムアウト＋再試行案内。
+  const hint = setTimeout(() => { if (!settled && btn) btn.innerHTML = '<i class="ti ti-loader-2 spinning"></i> 取得中…(少々お待ちを)'; }, 6000);
+  const timer = setTimeout(() => {
+    if (settled) return; settled = true; clearTimeout(hint); cleanup(); restore();
+    alert('取得に時間がかかっています。混み合っている可能性があります。もう一度お試しください。');
+  }, 55000);
   window[cbName] = function(json) {
-    delete window[cbName];
-    const el = document.getElementById('jsonp_' + cbName); if (el) el.remove();
-    restore();
+    if (settled) return; settled = true; clearTimeout(hint); clearTimeout(timer); cleanup(); restore();
     if (!json || json.status !== 'ok') { alert('取得失敗: ' + ((json && json.message) || 'エラー')); return; }
     const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1716,7 +1722,7 @@ function downloadTemplate() {
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
   script.src = GAS_API_URL + '?action=template_download&callback=' + cbName;
-  script.onerror = function() { delete window[cbName]; script.remove(); restore(); alert('取得に失敗しました'); };
+  script.onerror = function() { if (settled) return; settled = true; clearTimeout(hint); clearTimeout(timer); cleanup(); restore(); alert('取得に失敗しました'); };
   document.body.appendChild(script);
 }
 // 荷だし表テンプレを更新（アップロード→テンプレ差し替え＋直下アーカイブ＋Slack通知）
