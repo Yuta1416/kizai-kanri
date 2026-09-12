@@ -347,13 +347,6 @@ tr:hover td { background: var(--bg3); }
 /* 小さめ（予約編集など密なところ用） */
 .stepper.sm .step-btn { width: 28px; height: 28px; font-size: 18px; }
 .stepper.sm .step-input { width: 34px !important; font-size: 13px; }
-/* スケジュールカードの セグメント切替（スタッフ / 現場） */
-.sched-seg { display: inline-flex; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 2px; gap: 2px; }
-.sched-seg-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 600;
-  border: none; border-radius: 6px; background: none; color: var(--text2); cursor: pointer; white-space: nowrap; }
-.sched-seg-btn .ti { font-size: 15px; }
-.sched-seg-btn.on { background: var(--primary); color: #fff; }
-.sched-seg-btn:not(.on):active { background: var(--bg3); }
 /* 選択中サマリ（モーダル下部） */
 .loan-pick-summary { font-size: 12.5px; color: var(--text2); margin-top: 10px; min-height: 18px; }
 .loan-pick-summary b { color: var(--primary); }
@@ -563,6 +556,8 @@ tr:hover td { background: var(--bg3); }
 .shift-table-wrap td:first-child, .shift-table-wrap th:first-child {
   text-align: center; font-weight: 700; background: var(--bg2);
 }
+/* 先頭行(タイトル・列見出し)は縦スクロールしても固定＝列の意味を見失わない */
+.shift-table-wrap tr:nth-child(1) td, .shift-table-wrap tr:nth-child(1) th { position: sticky; top: 0; z-index: 3; background: var(--bg2); font-weight: 600; }
 .sft-cell { border: 1px solid var(--border); padding: 4px 6px; vertical-align: top; word-break: break-all; font-size: 11px; }
 .sft-hd { background: var(--bg3); font-weight: 600; text-align: center; font-size: 10px; }
 .sft-hd-blue { background: #dbeafe; color: #1d4ed8; }

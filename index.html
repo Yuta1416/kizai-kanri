@@ -97,22 +97,28 @@
       </div>
     </div>
     <div class="dash-card" style="margin-top:14px">
-      <div class="dash-card-head" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div class="sched-seg">
-          <button id="seg-staff" class="sched-seg-btn on" onclick="switchSchedule('staff')"><i class="ti ti-users" aria-hidden="true"></i> スタッフ</button>
-          <button id="seg-site" class="sched-seg-btn" onclick="switchSchedule('site')"><i class="ti ti-calendar-event" aria-hidden="true"></i> <span id="seg-site-label">現場スケジュール</span></button>
+      <div class="dash-card-head" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-users" aria-hidden="true"></i>
+          <span id="staff-shift-filename">スタッフシフト</span>
         </div>
-        <button class="btn" style="padding:4px 8px;font-size:11px" onclick="refreshSchedule()"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
-      </div>
-      <div style="padding:2px 10px 0;font-size:11px;color:var(--text2)">
-        <span id="staff-shift-filename">スタッフシフト</span>
-        <span id="shift-filename" hidden>現場スケジュール</span>
+        <button class="btn" style="padding:4px 8px;font-size:11px" onclick="fetchStaffShiftFile()"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
       </div>
       <div id="staff-shift-content" style="overflow-x:auto;padding:8px">
         <div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">読み込み中...</div>
       </div>
-      <div id="shift-content" style="overflow-x:auto;padding:8px" hidden>
-        <div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">切り替えると読み込みます</div>
+    </div>
+    <div class="dash-card" style="margin-top:14px">
+      <div class="dash-card-head" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <i class="ti ti-calendar-event" aria-hidden="true"></i>
+          <span id="site-shift-title" style="font-weight:600">現場スケジュール</span>
+          <span id="shift-filename" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        </div>
+        <button class="btn" style="padding:4px 8px;font-size:11px" onclick="fetchShiftFile()"><i class="ti ti-refresh" aria-hidden="true"></i> 更新</button>
+      </div>
+      <div id="shift-content" style="overflow-x:auto;padding:8px">
+        <div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">読み込み中...</div>
       </div>
     </div>
   </div>

@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v92';
+const APP_VERSION = 'v93';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -956,7 +956,7 @@ function switchTab(tab, el) {
   if (tab === 'history') fetchHistory(); // 履歴はタブを開いた時だけ取得（初回表示を高速化）
   if (tab === 'loan') fetchLoanHistory(); // 拠点間の履歴もタブを開いた時に取得
   if (tab === 'dashboard') { renderDashboard(); fetchShiftFile(); }
-  if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); }
+  if (tab === 'all') { renderTopPage(); fetchStaffShiftFile(); if (!window._shiftWb) setTimeout(function(){ fetchShiftFile(); }, 500); }
   // ビュー切替時は最上部へスクロール（スマホで見やすく）
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
@@ -2537,8 +2537,14 @@ function fetchFromSpreadsheet() {
       if (currentTab === 'dashboard') renderDashboard();
       if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
       showLoading(false);
-      // アプリが使える状態になってから、重いスタッフシフト表を読む（ホーム表示用・GAS競合回避）
-      setTimeout(function() { if (currentTab === 'all' || currentTab === 'dashboard') fetchStaffShiftFile(); }, 300);
+      // アプリが使える状態になってから、重いシフト/スケジュール表を読む（ホーム表示用・GAS競合回避）。
+      // スタッフ→現場の順にずらして取得（同一GASのDropbox往復が重なるのを避ける）。
+      setTimeout(function() {
+        if (currentTab === 'all' || currentTab === 'dashboard') {
+          fetchStaffShiftFile();
+          setTimeout(function(){ if (currentTab === 'all') fetchShiftFile(); }, 700);
+        }
+      }, 300);
     } else {
       onFail(); // status=error 等はリトライ扱い
     }
@@ -2916,28 +2922,6 @@ function fetchShiftFile(retry) {
   document.body.appendChild(script);
 }
 
-// ホームのスケジュールカード：スタッフ ⇄ 現場スケジュール(自拠点) をカード内で切替
-let _schedView = 'staff';
-function switchSchedule(which) {
-  _schedView = which;
-  const staffOn = which === 'staff';
-  document.getElementById('seg-staff')?.classList.toggle('on', staffOn);
-  document.getElementById('seg-site')?.classList.toggle('on', !staffOn);
-  const sc = document.getElementById('staff-shift-content');
-  const fc = document.getElementById('shift-content');
-  const sf = document.getElementById('staff-shift-filename');
-  const ff = document.getElementById('shift-filename');
-  if (sc) sc.hidden = !staffOn;
-  if (fc) fc.hidden = staffOn;
-  if (sf) sf.hidden = !staffOn;
-  if (ff) ff.hidden = staffOn;
-  if (staffOn) { if (!window._staffShiftWb) fetchStaffShiftFile(); }
-  else         { if (!window._shiftWb)      fetchShiftFile(); }
-}
-function refreshSchedule() {
-  if (_schedView === 'staff') fetchStaffShiftFile();
-  else fetchShiftFile();
-}
 
 function renderShiftSheet(idx) {
   const wb = window._shiftWb;
@@ -2949,8 +2933,27 @@ function renderShiftSheet(idx) {
     `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
   const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
-  // 元エクセルの結合セル(!merges)と全列をそのまま活かして描画（列を切ると結合がずれて崩れる）。
-  // 縦横スクロールは .shift-table-wrap 側で対応。
+  // 末尾の空行・空列だけを削って余白の崩れを解消（結合セル !merges はそのまま活かす）。
+  // 内容の最終行/列を求め、そこから外に伸びる結合があればその末端まで含めて切る＝結合を割らない。
+  if (ws['!ref']) {
+    const full = XLSX.utils.decode_range(ws['!ref']);
+    let maxR = full.s.r, maxC = full.s.c;
+    for (let r = full.s.r; r <= full.e.r; r++) {
+      for (let c = full.s.c; c <= full.e.c; c++) {
+        const cell = ws[XLSX.utils.encode_cell({r, c})];
+        if (cell && cell.v !== undefined && String(cell.v).trim() !== '') {
+          if (r > maxR) maxR = r;
+          if (c > maxC) maxC = c;
+        }
+      }
+    }
+    (ws['!merges'] || []).forEach(function(m) {
+      if (m.s.r <= maxR && m.s.c <= maxC) { if (m.e.r > maxR) maxR = m.e.r; if (m.e.c > maxC) maxC = m.e.c; }
+    });
+    full.e.r = Math.min(full.e.r, maxR);
+    full.e.c = Math.min(full.e.c, maxC);
+    ws['!ref'] = XLSX.utils.encode_range(full);
+  }
   const html = XLSX.utils.sheet_to_html(ws, {editable: false});
   content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
 }
@@ -3451,7 +3454,7 @@ function applyUpdate() {
 // 版番号を画面に表示（フッターはこの<script>より後に解析されるためDOM構築後にセット）
 function _setAppVersion(){
   const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION;
-  const sl = document.getElementById('seg-site-label'); if (sl) sl.textContent = SELF_LABEL + 'スケジュール';
+  const sl = document.getElementById('site-shift-title'); if (sl) sl.textContent = SELF_LABEL + 'スケジュール';
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _setAppVersion); else _setAppVersion();
 
