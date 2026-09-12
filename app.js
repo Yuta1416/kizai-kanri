@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v84';
+const APP_VERSION = 'v85';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -678,18 +678,29 @@ function renderSpecial() {
   const tb = document.getElementById('tbl-special');
   const sp = inv.filter(i => ['修理中','レンタル中','長期不在'].includes(calcSt(i)));
   if (!sp.length) { tb.innerHTML = `<tr><td colspan="7" class="empty">修理・レンタル・長期不在の機材はありません</td></tr>`; return; }
-  tb.innerHTML = sp.map(item => {
-    const idx = inv.indexOf(item);
-    return `<tr>
-      <td style="font-size:11px;color:var(--text2)">${item.cat}</td>
-      <td style="font-size:11px">${item.maker}</td>
-      <td style="font-weight:700">${item.model}</td>
-      <td style="text-align:center">${item.special}</td>
-      <td>${badge(calcSt(item))}</td>
-      <td style="font-size:11px;color:var(--warn-text)">${item.note||'—'}</td>
-      <td><button class="act" onclick="resolveSpecial(${idx})"><i class="ti ti-rotate"></i> 復帰</button></td>
-    </tr>`;
-  }).join('');
+  // ステータスごとにグループ化して見やすく（修理中→レンタル中→長期不在）
+  const order = ['修理中','レンタル中','長期不在'];
+  const stCls = st => st==='修理中' ? 'sp-repair' : (st==='レンタル中' ? 'sp-rental' : 'sp-absent');
+  const groups = {}; sp.forEach(it => { const s = calcSt(it); (groups[s] = groups[s] || []).push(it); });
+  let html = '';
+  order.forEach(st => {
+    const list = groups[st]; if (!list || !list.length) return;
+    const totalQty = list.reduce((s,it)=>s+(parseInt(it.special)||0),0);
+    html += `<tr class="sp-group-head ${stCls(st)}"><td colspan="7">${badge(st)}<span class="sp-group-count">${list.length}品目・計${totalQty}台</span></td></tr>`;
+    html += list.map(item => {
+      const idx = inv.indexOf(item);
+      return `<tr class="sp-row ${stCls(st)}">
+        <td style="font-size:11px;color:var(--text2)">${escHtml(item.cat)}</td>
+        <td style="font-size:11px">${escHtml(item.maker)}</td>
+        <td style="font-weight:700">${escHtml(item.model)}</td>
+        <td style="text-align:center">${item.special}</td>
+        <td>${badge(st)}</td>
+        <td class="note-cell${item.note ? ' has' : ''}" style="font-size:11px">${item.note ? escHtml(item.note) : '—'}</td>
+        <td><button class="act" onclick="resolveSpecial(${idx})"><i class="ti ti-rotate"></i> 復帰</button></td>
+      </tr>`;
+    }).join('');
+  });
+  tb.innerHTML = html;
 }
 
 function renderHistory() {
