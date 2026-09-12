@@ -1,6 +1,6 @@
 {
-  "name": "機材在庫管理",
-  "short_name": "機材管理",
+  "name": "機材在庫管理（大阪）",
+  "short_name": "機材管理大阪",
   "description": "音響・イベント機材の持ち出し・返却管理システム",
   "start_url": "/",
   "display": "standalone",
