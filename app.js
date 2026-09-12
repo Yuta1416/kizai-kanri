@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v91';
+const APP_VERSION = 'v92';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2881,18 +2881,24 @@ let shortageData = {};
 // ============================================================
 // シフトExcel取得・表示
 // ============================================================
-function fetchShiftFile() {
+function fetchShiftFile(retry) {
   if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') return;
+  retry = retry || 0;
+  const MAX_RETRY = 2;  // GASコールドスタートで初回失敗しても自動再試行（読み込み失敗のまま固まらない）
+  const content0 = document.getElementById('shift-content');
+  if (content0 && !window._shiftWb) content0.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2);font-size:13px">読み込み中...</div>';
   const cbName = 'shiftCb_' + Date.now();
+  const retryOrFail = function(msg) {
+    if (retry < MAX_RETRY) { setTimeout(function(){ fetchShiftFile(retry + 1); }, 1200); return; }
+    const content = document.getElementById('shift-content');
+    if (content) content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2);font-size:13px">' + escHtml(msg) + '<br><button class="btn" style="margin-top:10px" onclick="fetchShiftFile()"><i class="ti ti-refresh"></i> 再試行</button></div>';
+  };
   window[cbName] = function(json) {
     delete window[cbName];
     document.getElementById('jsonp_'+cbName)?.remove();
+    if (!json || json.status !== 'ok' || !json.data) { retryOrFail((json && json.message) ? json.message : 'ファイルが見つかりません'); return; }
     const content = document.getElementById('shift-content');
     if (!content) return;
-    if (json.status !== 'ok') {
-      content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2);font-size:13px">ファイルが見つかりません: ' + escHtml(json.message||'エラー') + '</div>';
-      return;
-    }
     const fname = document.getElementById('shift-filename');
     if (fname) fname.textContent = json.filename || 'シフト';
     const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
@@ -2905,8 +2911,7 @@ function fetchShiftFile() {
   script.src = GAS_API_URL + '?action=shift_file&loc=' + encodeURIComponent(SELF_LOC) + '&callback=' + cbName;
   script.onerror = function() {
     delete window[cbName]; script.remove();
-    const content = document.getElementById('shift-content');
-    if (content) content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2)">読み込み失敗</div>';
+    retryOrFail('読み込み失敗');
   };
   document.body.appendChild(script);
 }
@@ -2944,12 +2949,8 @@ function renderShiftSheet(idx) {
     `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
   const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
-  if (ws['!ref']) {
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    range.e.c = Math.min(range.e.c, 9);  // J列(index 9)まで
-    range.e.r = Math.min(range.e.r, 199); // 200行まで
-    ws['!ref'] = XLSX.utils.encode_range(range);
-  }
+  // 元エクセルの結合セル(!merges)と全列をそのまま活かして描画（列を切ると結合がずれて崩れる）。
+  // 縦横スクロールは .shift-table-wrap 側で対応。
   const html = XLSX.utils.sheet_to_html(ws, {editable: false});
   content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
 }
