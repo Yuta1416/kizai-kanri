@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v88';
+const APP_VERSION = 'v89';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -703,8 +703,8 @@ function renderSpecial() {
             ${item.note ? `<div class="sp-card-note"><i class="ti ti-note" aria-hidden="true"></i> ${escHtml(item.note)}</div>` : ''}
           </div>
           <div class="sp-card-act">
-            ${stepperHtml(`<input type="number" class="step-input sp-ret-qty" min="1" max="${spq}" value="${spq}" data-idx="${idx}" inputmode="numeric" oninput="syncStepper(this)">`, true)}
-            <button class="act" onclick="resolveSpecialRow(this)"><i class="ti ti-rotate"></i> 復帰</button>
+            ${spq > 1 ? `<span class="sp-ret-label">戻す数</span>${stepperHtml(`<input type="number" class="step-input sp-ret-qty" min="1" max="${spq}" value="${spq}" data-idx="${idx}" inputmode="numeric" oninput="syncStepper(this)">`, true)}` : ''}
+            <button class="act" onclick="${spq > 1 ? 'resolveSpecialRow(this)' : `resolveSpecial(${idx})`}"><i class="ti ti-rotate"></i> 復帰</button>
           </div>
         </div>`;
       }).join('')
@@ -1150,10 +1150,10 @@ function doSpecial() {
     document.body.appendChild(script);
   }
 }
-// 行の数量ステッパーの値を読んで復帰
+// カードの数量ステッパーの値を読んで復帰
 function resolveSpecialRow(btn) {
-  const cell = btn.closest('td');
-  const input = cell.querySelector('.sp-ret-qty'); if (!input) return;
+  const wrap = btn.closest('.sp-card-act') || btn.closest('.sp-card');
+  const input = wrap ? wrap.querySelector('.sp-ret-qty') : null; if (!input) return;
   const idx = parseInt(input.getAttribute('data-idx'));
   const qty = parseInt(input.value) || 0;
   resolveSpecial(idx, qty);
@@ -1165,7 +1165,11 @@ function resolveSpecial(idx, qty) {
   let q = (qty && qty > 0) ? Math.min(qty, max) : max;
   if (q <= 0) return;
   const partial = q < max;
-  if (partial && !confirm(`${item.model} を ${q}台だけ復帰します（残り ${max - q}台は${calcSt(item)}のまま）。よろしいですか？`)) return;
+  const st = calcSt(item);
+  const msg = partial
+    ? `「${item.model}」を ${q}台 だけ在庫に戻します（残り ${max - q}台は「${st}」のまま）。よろしいですか？`
+    : `「${item.model}」${max}台 を「${st}」から在庫に戻します。よろしいですか？`;
+  if (!confirm(msg)) return;
   const now = new Date().toLocaleString('ja-JP');
   history.push({date:now,project:'',staff:'',model:`${item.maker} ${item.model}`,qty:q,action:(partial?'一部復帰':'復帰'),note:item.note});
   // ローカル反映：special を減らす（0なら通常在庫へ）

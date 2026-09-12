@@ -241,6 +241,7 @@ tr:hover td { background: var(--bg3); }
 .sp-card-note { font-size: 11px; color: var(--warn-text); margin-top: 4px; }
 .sp-card-act { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .sp-card-act .act { white-space: nowrap; }
+.sp-ret-label { font-size: 11px; color: var(--text2); white-space: nowrap; }
 @media (max-width: 540px) {
   .sp-card { flex-wrap: wrap; }
   .sp-card-act { width: 100%; justify-content: flex-end; margin-top: 4px; }
