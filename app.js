@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v86';
+const APP_VERSION = 'v87';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -686,17 +686,25 @@ function renderSpecial() {
   order.forEach(st => {
     const list = groups[st]; if (!list || !list.length) return;
     const totalQty = list.reduce((s,it)=>s+(parseInt(it.special)||0),0);
-    html += `<tr class="sp-group-head ${stCls(st)}"><td colspan="7">${badge(st)}<span class="sp-group-count">${list.length}品目・計${totalQty}台</span></td></tr>`;
+    html += `<tr class="sp-group-head ${stCls(st)}"><td colspan="7">
+      <div class="sp-group-bar">
+        <span>${badge(st)}<span class="sp-group-count">${list.length}品目・計${totalQty}台</span></span>
+        <button class="act act-primary" onclick="bulkResolveGroup('${st}')"><i class="ti ti-rotate"></i> ${escHtml(st)}をまとめて復帰</button>
+      </div></td></tr>`;
     html += list.map(item => {
       const idx = inv.indexOf(item);
+      const sp = parseInt(item.special) || 0;
       return `<tr class="sp-row ${stCls(st)}">
         <td style="font-size:11px;color:var(--text2)">${escHtml(item.cat)}</td>
         <td style="font-size:11px">${escHtml(item.maker)}</td>
         <td style="font-weight:700">${escHtml(item.model)}</td>
-        <td style="text-align:center">${item.special}</td>
+        <td style="text-align:center">${sp}</td>
         <td>${badge(st)}</td>
         <td class="note-cell${item.note ? ' has' : ''}" style="font-size:11px">${item.note ? escHtml(item.note) : '—'}</td>
-        <td><button class="act" onclick="resolveSpecial(${idx})"><i class="ti ti-rotate"></i> 復帰</button></td>
+        <td><div class="sp-act">
+          ${stepperHtml(`<input type="number" class="step-input sp-ret-qty" min="1" max="${sp}" value="${sp}" data-idx="${idx}" inputmode="numeric" oninput="syncStepper(this)">`, true)}
+          <button class="act" onclick="resolveSpecialRow(this)"><i class="ti ti-rotate"></i> 復帰</button>
+        </div></td>
       </tr>`;
     }).join('');
   });
@@ -1140,29 +1148,59 @@ function doSpecial() {
     document.body.appendChild(script);
   }
 }
-function resolveSpecial(idx) {
-  const item=inv[idx], now=new Date().toLocaleString('ja-JP');
-  history.push({date:now,project:'',staff:'',model:`${item.maker} ${item.model}`,qty:item.special,action:'復帰',note:item.note});
-  item.special=0; item.status='IN'; render();
+// 行の数量ステッパーの値を読んで復帰
+function resolveSpecialRow(btn) {
+  const cell = btn.closest('td');
+  const input = cell.querySelector('.sp-ret-qty'); if (!input) return;
+  const idx = parseInt(input.getAttribute('data-idx'));
+  const qty = parseInt(input.value) || 0;
+  resolveSpecial(idx, qty);
+}
+// 特殊ステータスを復帰（qty指定で一部復帰。未指定/全量なら通常復帰）
+function resolveSpecial(idx, qty) {
+  const item = inv[idx]; if (!item) return;
+  const max = parseInt(item.special) || 0;
+  let q = (qty && qty > 0) ? Math.min(qty, max) : max;
+  if (q <= 0) return;
+  const partial = q < max;
+  if (partial && !confirm(`${item.model} を ${q}台だけ復帰します（残り ${max - q}台は${calcSt(item)}のまま）。よろしいですか？`)) return;
+  const now = new Date().toLocaleString('ja-JP');
+  history.push({date:now,project:'',staff:'',model:`${item.maker} ${item.model}`,qty:q,action:(partial?'一部復帰':'復帰'),note:item.note});
+  // ローカル反映：special を減らす（0なら通常在庫へ）
+  item.special = Math.max(0, max - q);
+  if (item.special === 0) item.status = 'IN';
+  render();
 
-  // スプレッドシートにも反映（JSONP）
   if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
     const cbRes = 'cb_' + Date.now();
     const params = new URLSearchParams({
-      action:   'resolve',
-      model:    item.maker + ' ' + item.model,
+      action: 'resolve',
+      model:  item.maker + ' ' + item.model,
+      qty:    String(q),
       callback: cbRes,
     });
     window[cbRes] = function(json) {
       delete window[cbRes];
-      const el = document.getElementById('jsonp_' + cbRes);
-      if (el) el.remove();
+      const el = document.getElementById('jsonp_' + cbRes); if (el) el.remove();
     };
     const script = document.createElement('script');
     script.id = 'jsonp_' + cbRes;
     script.src = GAS_API_URL + '?' + params.toString();
     document.body.appendChild(script);
   }
+}
+// ステータスごとにまとめて復帰（レンタルはレンタル、長期は長期で）
+function bulkResolveGroup(status) {
+  const list = inv.filter(i => calcSt(i) === status);
+  if (!list.length) return;
+  const totalQty = list.reduce((s,i)=>s+(parseInt(i.special)||0),0);
+  if (!confirm(`「${status}」の機材 ${list.length}品目・計${totalQty}台 をまとめて復帰（在庫に戻す）します。よろしいですか？`)) return;
+  const now = new Date().toLocaleString('ja-JP');
+  list.forEach(i => { history.push({date:now,project:'',staff:'',model:`${i.maker} ${i.model}`,qty:i.special,action:'一括復帰',note:i.note}); i.special=0; i.status='IN'; });
+  render();
+  gasJsonp({ action:'resolve_bulk', status: status }, function(json) {
+    setTimeout(function(){ try { reloadData(); } catch(_){} }, 600);
+  });
 }
 
 function openNoteModal(idx) {
