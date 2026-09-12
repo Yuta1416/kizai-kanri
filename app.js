@@ -15,8 +15,13 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 // 拠点間 貸し借りの相手拠点名（大阪→東京 / 東京→大阪）。表示ラベル用。
 const PEER_LABEL = '東京';
 
+// 自拠点ラベルと現場スケジュールのフォルダ識別子（PEER_LABEL から自動導出＝両サイト共通コード）。
+// 大阪アプリ→SELF_LABEL='大阪'/loc='osaka'、東京アプリ→'東京'/'tokyo'。
+const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪' ? '東京' : '現場');
+const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
+
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v90';
+const APP_VERSION = 'v91';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2897,13 +2902,36 @@ function fetchShiftFile() {
   };
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
-  script.src = GAS_API_URL + '?action=shift_file&callback=' + cbName;
+  script.src = GAS_API_URL + '?action=shift_file&loc=' + encodeURIComponent(SELF_LOC) + '&callback=' + cbName;
   script.onerror = function() {
     delete window[cbName]; script.remove();
     const content = document.getElementById('shift-content');
     if (content) content.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text2)">読み込み失敗</div>';
   };
   document.body.appendChild(script);
+}
+
+// ホームのスケジュールカード：スタッフ ⇄ 現場スケジュール(自拠点) をカード内で切替
+let _schedView = 'staff';
+function switchSchedule(which) {
+  _schedView = which;
+  const staffOn = which === 'staff';
+  document.getElementById('seg-staff')?.classList.toggle('on', staffOn);
+  document.getElementById('seg-site')?.classList.toggle('on', !staffOn);
+  const sc = document.getElementById('staff-shift-content');
+  const fc = document.getElementById('shift-content');
+  const sf = document.getElementById('staff-shift-filename');
+  const ff = document.getElementById('shift-filename');
+  if (sc) sc.hidden = !staffOn;
+  if (fc) fc.hidden = staffOn;
+  if (sf) sf.hidden = !staffOn;
+  if (ff) ff.hidden = staffOn;
+  if (staffOn) { if (!window._staffShiftWb) fetchStaffShiftFile(); }
+  else         { if (!window._shiftWb)      fetchShiftFile(); }
+}
+function refreshSchedule() {
+  if (_schedView === 'staff') fetchStaffShiftFile();
+  else fetchShiftFile();
 }
 
 function renderShiftSheet(idx) {
@@ -3420,7 +3448,10 @@ function applyUpdate() {
   setTimeout(() => location.reload(), 1500);       // 念のためのフォールバック
 }
 // 版番号を画面に表示（フッターはこの<script>より後に解析されるためDOM構築後にセット）
-function _setAppVersion(){ const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
+function _setAppVersion(){
+  const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION;
+  const sl = document.getElementById('seg-site-label'); if (sl) sl.textContent = SELF_LABEL + 'スケジュール';
+}
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _setAppVersion); else _setAppVersion();
 
 // 在庫を持ち出し中レコードから再計算（ズレの手動訂正）
