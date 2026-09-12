@@ -16,7 +16,7 @@ const STAFF_SHIFT_COLS = [2, 3, 4, 5, 6, 7, 8, 9];
 const PEER_LABEL = '東京';
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v87';
+const APP_VERSION = 'v88';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -675,10 +675,10 @@ function renderOut() {
 }
 
 function renderSpecial() {
-  const tb = document.getElementById('tbl-special');
+  const box = document.getElementById('special-container');
   const sp = inv.filter(i => ['修理中','レンタル中','長期不在'].includes(calcSt(i)));
-  if (!sp.length) { tb.innerHTML = `<tr><td colspan="7" class="empty">修理・レンタル・長期不在の機材はありません</td></tr>`; return; }
-  // ステータスごとにグループ化して見やすく（修理中→レンタル中→長期不在）
+  if (!sp.length) { box.innerHTML = `<div class="empty">修理・レンタル・長期不在の機材はありません</div>`; return; }
+  // ステータスごとにグループ化（修理中→レンタル中→長期不在）＋カード表示（スマホでも横スクロール無し）
   const order = ['修理中','レンタル中','長期不在'];
   const stCls = st => st==='修理中' ? 'sp-repair' : (st==='レンタル中' ? 'sp-rental' : 'sp-absent');
   const groups = {}; sp.forEach(it => { const s = calcSt(it); (groups[s] = groups[s] || []).push(it); });
@@ -686,29 +686,31 @@ function renderSpecial() {
   order.forEach(st => {
     const list = groups[st]; if (!list || !list.length) return;
     const totalQty = list.reduce((s,it)=>s+(parseInt(it.special)||0),0);
-    html += `<tr class="sp-group-head ${stCls(st)}"><td colspan="7">
+    html += `<div class="sp-group ${stCls(st)}">
       <div class="sp-group-bar">
         <span>${badge(st)}<span class="sp-group-count">${list.length}品目・計${totalQty}台</span></span>
-        <button class="act act-primary" onclick="bulkResolveGroup('${st}')"><i class="ti ti-rotate"></i> ${escHtml(st)}をまとめて復帰</button>
-      </div></td></tr>`;
-    html += list.map(item => {
-      const idx = inv.indexOf(item);
-      const sp = parseInt(item.special) || 0;
-      return `<tr class="sp-row ${stCls(st)}">
-        <td style="font-size:11px;color:var(--text2)">${escHtml(item.cat)}</td>
-        <td style="font-size:11px">${escHtml(item.maker)}</td>
-        <td style="font-weight:700">${escHtml(item.model)}</td>
-        <td style="text-align:center">${sp}</td>
-        <td>${badge(st)}</td>
-        <td class="note-cell${item.note ? ' has' : ''}" style="font-size:11px">${item.note ? escHtml(item.note) : '—'}</td>
-        <td><div class="sp-act">
-          ${stepperHtml(`<input type="number" class="step-input sp-ret-qty" min="1" max="${sp}" value="${sp}" data-idx="${idx}" inputmode="numeric" oninput="syncStepper(this)">`, true)}
-          <button class="act" onclick="resolveSpecialRow(this)"><i class="ti ti-rotate"></i> 復帰</button>
-        </div></td>
-      </tr>`;
-    }).join('');
+        <button class="act act-primary" onclick="bulkResolveGroup('${st}')"><i class="ti ti-rotate"></i> まとめて復帰</button>
+      </div>
+      <div class="sp-cards">`
+      + list.map(item => {
+        const idx = inv.indexOf(item);
+        const spq = parseInt(item.special) || 0;
+        const mk = (item.maker && item.maker !== '—') ? ' ・ ' + escHtml(item.maker) : '';
+        return `<div class="sp-card ${stCls(st)}">
+          <div class="sp-card-info">
+            <div class="sp-card-name">${escHtml(item.model)}</div>
+            <div class="sp-card-sub">${escHtml(item.cat||'')}${mk}　<span class="sp-card-qty">${spq}台</span></div>
+            ${item.note ? `<div class="sp-card-note"><i class="ti ti-note" aria-hidden="true"></i> ${escHtml(item.note)}</div>` : ''}
+          </div>
+          <div class="sp-card-act">
+            ${stepperHtml(`<input type="number" class="step-input sp-ret-qty" min="1" max="${spq}" value="${spq}" data-idx="${idx}" inputmode="numeric" oninput="syncStepper(this)">`, true)}
+            <button class="act" onclick="resolveSpecialRow(this)"><i class="ti ti-rotate"></i> 復帰</button>
+          </div>
+        </div>`;
+      }).join('')
+      + `</div></div>`;
   });
-  tb.innerHTML = html;
+  box.innerHTML = html;
 }
 
 function renderHistory() {
