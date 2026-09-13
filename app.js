@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v93';
+const APP_VERSION = 'v94';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2908,7 +2908,7 @@ function fetchShiftFile(retry) {
     const fname = document.getElementById('shift-filename');
     if (fname) fname.textContent = json.filename || 'シフト';
     const bytes = Uint8Array.from(atob(json.data), c => c.charCodeAt(0));
-    const wb = XLSX.read(bytes, {type:'array'});
+    const wb = XLSX.read(bytes, {type:'array', cellStyles:true});  // cellStyles=セル塗り色/フォント色/太字も読む
     window._shiftWb = wb;
     renderShiftSheet(0);
   };
@@ -2933,29 +2933,65 @@ function renderShiftSheet(idx) {
     `<button onclick="renderShiftSheet(${i})" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:${i===idx?'var(--accent)':'var(--bg2)'};color:${i===idx?'#fff':'var(--text1)'}">${escHtml(name)}</button>`
   ).join('');
   const ws = wb.Sheets[sheetNames[idx] || wb.SheetNames[0]];
-  // 末尾の空行・空列だけを削って余白の崩れを解消（結合セル !merges はそのまま活かす）。
-  // 内容の最終行/列を求め、そこから外に伸びる結合があればその末端まで含めて切る＝結合を割らない。
-  if (ws['!ref']) {
-    const full = XLSX.utils.decode_range(ws['!ref']);
-    let maxR = full.s.r, maxC = full.s.c;
-    for (let r = full.s.r; r <= full.e.r; r++) {
-      for (let c = full.s.c; c <= full.e.c; c++) {
-        const cell = ws[XLSX.utils.encode_cell({r, c})];
-        if (cell && cell.v !== undefined && String(cell.v).trim() !== '') {
-          if (r > maxR) maxR = r;
-          if (c > maxC) maxC = c;
-        }
-      }
-    }
-    (ws['!merges'] || []).forEach(function(m) {
-      if (m.s.r <= maxR && m.s.c <= maxC) { if (m.e.r > maxR) maxR = m.e.r; if (m.e.c > maxC) maxC = m.e.c; }
-    });
-    full.e.r = Math.min(full.e.r, maxR);
-    full.e.c = Math.min(full.e.c, maxC);
-    ws['!ref'] = XLSX.utils.encode_range(full);
-  }
-  const html = XLSX.utils.sheet_to_html(ws, {editable: false});
+  const html = shiftSheetToColoredHtml(ws);
   content.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabs}</div><div class="shift-table-wrap">${html}</div>`;
+}
+
+// 現場スケジュールを「A1:Y列×95行」に固定し、結合セル＋元エクセルのセル色/文字色/太字を反映して描画。
+// （標準の sheet_to_html は色を落とすため、cellStyles で読んだ cell.s を使って自前で組む）
+const SHIFT_MAX_COL = 24;  // Y列(0始まり=24)まで
+const SHIFT_MAX_ROW = 94;  // 95行目(0始まり=94)まで
+function shiftSheetToColoredHtml(ws) {
+  if (!ws || !ws['!ref']) return '<div style="padding:1rem;color:var(--text2)">データがありません</div>';
+  const full = XLSX.utils.decode_range(ws['!ref']);
+  const maxR = Math.min(full.e.r, SHIFT_MAX_ROW);
+  const maxC = Math.min(full.e.c, SHIFT_MAX_COL);
+  // 結合セル：範囲内にクランプ。top-left は colspan/rowspan、それ以外は「覆われた」印を付けスキップ。
+  const spanAt = {}, covered = {};
+  (ws['!merges'] || []).forEach(function(m) {
+    if (m.s.r > maxR || m.s.c > maxC) return;
+    const er = Math.min(m.e.r, maxR), ec = Math.min(m.e.c, maxC);
+    spanAt[m.s.r + ',' + m.s.c] = { rs: er - m.s.r + 1, cs: ec - m.s.c + 1 };
+    for (var r = m.s.r; r <= er; r++) for (var c = m.s.c; c <= ec; c++) {
+      if (r === m.s.r && c === m.s.c) continue;
+      covered[r + ',' + c] = true;
+    }
+  });
+  var html = '<table>';
+  for (var r = 0; r <= maxR; r++) {
+    html += '<tr>';
+    for (var c = 0; c <= maxC; c++) {
+      if (covered[r + ',' + c]) continue;
+      const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+      const sp = spanAt[r + ',' + c];
+      var attrs = '';
+      if (sp) { if (sp.rs > 1) attrs += ' rowspan="' + sp.rs + '"'; if (sp.cs > 1) attrs += ' colspan="' + sp.cs + '"'; }
+      const val = (cell && cell.v != null) ? String(cell.v) : '';
+      html += '<td' + attrs + shiftCellStyle(cell) + '>' + escHtml(val) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  return html;
+}
+function shiftCellStyle(cell) {
+  const st = cell && cell.s;
+  if (!st) return '';
+  var s = '';
+  // この XLSX 版は塗り情報を s 直下(patternType/fgColor)に持つ。他版の s.fill.* もフォールバック。
+  var fg  = st.fgColor || (st.fill && (st.fill.fgColor || st.fill.bgColor));
+  var pat = (st.patternType !== undefined) ? st.patternType : (st.fill && st.fill.patternType);
+  if (fg && fg.rgb && pat !== 'none') {
+    var bg = String(fg.rgb).slice(-6).toUpperCase();
+    if (bg !== 'FFFFFF') {
+      s += 'background:#' + bg + ';';
+      // 塗り上の文字色：指定があれば使い、無ければ濃色に固定（ダークテーマでも読めるように）
+      var fc = (st.color && st.color.rgb) || (st.font && st.font.color && st.font.color.rgb);
+      s += 'color:#' + (fc ? String(fc).slice(-6) : '1f2937') + ';';
+    }
+  }
+  if (st.bold || (st.font && st.font.bold)) s += 'font-weight:700;';
+  return s ? ' style="' + s + '"' : '';
 }
 
 function fetchStaffShiftFile() {

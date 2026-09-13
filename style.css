@@ -551,7 +551,7 @@ tr:hover td { background: var(--bg3); }
 .shift-table-wrap td, .shift-table-wrap th {
   border: 1px solid var(--border);
   padding: 4px 8px; white-space: nowrap;
-  vertical-align: middle; min-width: 44px; color: var(--text1);
+  vertical-align: middle; min-width: 44px; height: 28px; color: var(--text1);
 }
 .shift-table-wrap td:first-child, .shift-table-wrap th:first-child {
   text-align: center; font-weight: 700; background: var(--bg2);
