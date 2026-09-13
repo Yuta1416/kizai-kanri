@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v96';
+const APP_VERSION = 'v97';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1182,23 +1182,14 @@ function resolveSpecial(idx, qty) {
   if (item.special === 0) item.status = 'IN';
   render();
 
-  if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
-    const cbRes = 'cb_' + Date.now();
-    const params = new URLSearchParams({
-      action: 'resolve',
-      model:  item.maker + ' ' + item.model,
-      qty:    String(q),
-      callback: cbRes,
-    });
-    window[cbRes] = function(json) {
-      delete window[cbRes];
-      const el = document.getElementById('jsonp_' + cbRes); if (el) el.remove();
-    };
-    const script = document.createElement('script');
-    script.id = 'jsonp_' + cbRes;
-    script.src = GAS_API_URL + '?' + params.toString();
-    document.body.appendChild(script);
-  }
+  // バックエンドで復帰→完了後に必ず再取得して「表示（マスター基準）」と実データを一致させる。
+  // （以前は投げっぱなしで、失敗しても見た目だけ消えて再読込で戻る＝反映されない事故があった）
+  gasJsonp({ action: 'resolve', model: item.maker + ' ' + item.model, qty: String(q) }, function(json) {
+    if (!json || json.status !== 'ok') {
+      alert('返却（復帰）の登録に失敗しました。通信環境を確認して、もう一度お試しください。');
+    }
+    setTimeout(function(){ try { reloadData(); } catch(_){} }, 400);
+  });
 }
 // ステータスごとにまとめて復帰（レンタルはレンタル、長期は長期で）
 function bulkResolveGroup(status) {
