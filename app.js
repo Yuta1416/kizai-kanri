@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v94';
+const APP_VERSION = 'v95';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2977,21 +2977,17 @@ function shiftSheetToColoredHtml(ws) {
 function shiftCellStyle(cell) {
   const st = cell && cell.s;
   if (!st) return '';
-  var s = '';
+  var styles = '', attrs = '';
   // この XLSX 版は塗り情報を s 直下(patternType/fgColor)に持つ。他版の s.fill.* もフォールバック。
   var fg  = st.fgColor || (st.fill && (st.fill.fgColor || st.fill.bgColor));
   var pat = (st.patternType !== undefined) ? st.patternType : (st.fill && st.fill.patternType);
   if (fg && fg.rgb && pat !== 'none') {
     var bg = String(fg.rgb).slice(-6).toUpperCase();
-    if (bg !== 'FFFFFF') {
-      s += 'background:#' + bg + ';';
-      // 塗り上の文字色：指定があれば使い、無ければ濃色に固定（ダークテーマでも読めるように）
-      var fc = (st.color && st.color.rgb) || (st.font && st.font.color && st.font.color.rgb);
-      s += 'color:#' + (fc ? String(fc).slice(-6) : '1f2937') + ';';
-    }
+    // 色は CSS 変数 --cell で渡し、明/暗の見せ方は CSS 側でテーマ連動させる（ダークで浮かないように）。
+    if (bg !== 'FFFFFF') { attrs += ' data-fill=""'; styles += '--cell:#' + bg + ';'; }
   }
-  if (st.bold || (st.font && st.font.bold)) s += 'font-weight:700;';
-  return s ? ' style="' + s + '"' : '';
+  if (st.bold || (st.font && st.font.bold)) styles += 'font-weight:700;';
+  return attrs + (styles ? ' style="' + styles + '"' : '');
 }
 
 function fetchStaffShiftFile() {

@@ -558,6 +558,14 @@ tr:hover td { background: var(--bg3); }
 }
 /* 先頭行(タイトル・列見出し)は縦スクロールしても固定＝列の意味を見失わない */
 .shift-table-wrap tr:nth-child(1) td, .shift-table-wrap tr:nth-child(1) th { position: sticky; top: 0; z-index: 3; background: var(--bg2); font-weight: 600; }
+/* 元エクセルの塗り色セル。色は --cell で受け取り、ライトは元のパステル＋濃字。
+   ※塗りセルはヘッダー行(sticky背景bg2)にも出るため !important で色を優先。 */
+.shift-table-wrap td[data-fill] { background: var(--cell) !important; color: #1f2937; }
+/* ダークは同じ色をダーク地に溶かした淡いトーン＋通常の明字＝浮かず読める。罫線も少し濃く。 */
+@media (prefers-color-scheme: dark) {
+  .shift-table-wrap td, .shift-table-wrap th { border-color: rgba(255,255,255,0.14); }
+  .shift-table-wrap td[data-fill] { background: color-mix(in srgb, var(--cell) 24%, var(--bg2)) !important; color: var(--text); }
+}
 .sft-cell { border: 1px solid var(--border); padding: 4px 6px; vertical-align: top; word-break: break-all; font-size: 11px; }
 .sft-hd { background: var(--bg3); font-weight: 600; text-align: center; font-size: 10px; }
 .sft-hd-blue { background: #dbeafe; color: #1d4ed8; }
