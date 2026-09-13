@@ -179,9 +179,20 @@
         <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">担当<input type="text" id="loan-staff" class="inp" style="width:100%" placeholder="担当者名"></label>
         <label style="flex:1;min-width:150px;font-size:12px;color:var(--text2)">備考<input type="text" id="loan-note" class="inp" style="width:100%" placeholder="任意"></label>
       </div>
-      <input type="text" id="loan-search" class="inp" style="width:100%;margin-bottom:8px" placeholder="型番・カテゴリ・メーカーで絞り込み" oninput="renderLoanItems()">
-      <div id="loan-item-list"></div>
-      <div class="loan-pick-summary" id="loan-pick-summary">＋−で貸す台数を選んでください</div>
+      <!-- 機材選択：カテゴリ→機材のプルダウンで選び「追加」。追加した機材は下のリストに残る（切替で消えない） -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px">
+        <label style="flex:1 1 130px;min-width:120px;font-size:11px;color:var(--text2)">カテゴリ
+          <select id="loan-cat" class="inp" style="width:100%" onchange="loanFillModels()"></select>
+        </label>
+        <label style="flex:2 1 190px;min-width:150px;font-size:11px;color:var(--text2)">機材
+          <select id="loan-model" class="inp" style="width:100%" onchange="loanOnModelChange()"></select>
+        </label>
+        <div style="font-size:11px;color:var(--text2)">数量<br><span class="stepper sm"><button type="button" class="step-btn" onclick="qtyStep(this,-1)" aria-label="減らす">−</button><input type="number" id="loan-qty" class="step-input" min="1" value="1" inputmode="numeric" oninput="syncStepper(this)"><button type="button" class="step-btn" onclick="qtyStep(this,1)" aria-label="増やす">+</button></span></div>
+        <button class="btn btn-primary" type="button" id="loan-add-btn" onclick="loanAddSelected()"><i class="ti ti-plus" aria-hidden="true"></i> 追加</button>
+      </div>
+      <div id="loan-avail-hint" style="font-size:11px;color:var(--text2);margin-bottom:8px;min-height:15px"></div>
+      <div id="loan-selected-list"></div>
+      <div class="loan-pick-summary" id="loan-pick-summary">機材を選んで「追加」してください</div>
       <div id="loan-status" style="font-size:13px;margin-top:4px;min-height:18px"></div>
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-loan')">キャンセル</button>

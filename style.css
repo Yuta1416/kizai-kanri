@@ -350,6 +350,16 @@ tr:hover td { background: var(--bg3); }
 /* 選択中サマリ（モーダル下部） */
 .loan-pick-summary { font-size: 12.5px; color: var(--text2); margin-top: 10px; min-height: 18px; }
 .loan-pick-summary b { color: var(--primary); }
+/* 追加済み機材の一覧（プルダウン方式） */
+.loan-sel-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--bg2); }
+.loan-sel-row.bad { border-color: var(--danger-text); }
+.loan-sel-info { flex: 1; min-width: 0; }
+.loan-sel-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loan-sel-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.loan-sel-qty { font-size: 13px; color: var(--text2); white-space: nowrap; }
+.loan-sel-qty b { color: var(--primary); font-size: 15px; }
+.loan-sel-del { flex-shrink: 0; width: 30px; height: 30px; border: none; border-radius: 7px; background: var(--bg3); color: var(--text2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.loan-sel-del:hover { background: var(--danger-bg); color: var(--danger-text); }
 /* 「これかも？」候補チップ */
 .add-sug { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .add-sug:empty { margin: 0; }

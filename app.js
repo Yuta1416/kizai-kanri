@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v95';
+const APP_VERSION = 'v96';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1287,72 +1287,115 @@ function openLoanModal() {
   const t = new Date(); const t7 = new Date(Date.now()+7*86400000);
   const dOut = document.getElementById('loan-dateout'); if (dOut) dOut.value = fmt(t);
   const dRet = document.getElementById('loan-dateret'); if (dRet) dRet.value = fmt(t7);
-  ['loan-staff','loan-note','loan-search'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['loan-staff','loan-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const st = document.getElementById('loan-status'); if (st) st.textContent = '';
-  renderLoanItems();
+  loanSelected = [];
+  loanFillCats();
+  renderLoanSelected();
   openModal('modal-loan');
 }
-function renderLoanItems() {
-  const box = document.getElementById('loan-item-list'); if (!box) return;
-  const q = (document.getElementById('loan-search')||{}).value || '';
-  const kw = q.trim().toLowerCase();
-  // 自社在庫のみ（借用の合成在庫は貸せない）
-  const list = (inv||[]).filter(it => !it.synthetic && (it.total||0) > 0)
-    .filter(it => !kw || [it.model,it.cat,it.maker].some(x => String(x||'').toLowerCase().includes(kw)));
-  if (!list.length) { box.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">該当する機材がありません</div>'; return; }
-  // カテゴリでグループ化（在庫の並び順を踏襲）
-  const groups = {}, order = [];
-  list.forEach(it => { const c = it.cat || 'その他'; if (!groups[c]) { groups[c] = []; order.push(c); } groups[c].push(it); });
-  box.innerHTML = order.map(cat => {
-    const rows = groups[cat].map(it => {
-      const av = loanAvailFor(it);
-      const dis = av <= 0;
-      const sub = dis ? '<span class="full">貸出できる在庫なし</span>'
-        : `この期間の空き <b>${av}</b>台${it.maker ? '　'+escHtml(it.maker) : ''}`;
-      return `<div class="loan-pick-row">
-        <div class="loan-pick-info">
-          <div class="loan-pick-name">${escHtml(it.model)}</div>
-          <div class="loan-pick-sub">${sub}</div>
-        </div>
-        ${stepperHtml(`<input type="number" min="0" max="${av}" step="1" value="0" class="step-input loan-in-qty" inputmode="numeric" data-model="${escHtml(it.model)}" data-cat="${escHtml(it.cat||'')}" data-maker="${escHtml(it.maker||'')}" oninput="loanMarkQty(this)" ${dis ? 'disabled' : ''}>`)}
-      </div>`;
-    }).join('');
-    return `<div class="loan-pick-cat">${escHtml(cat)}</div>` + rows;
+// 追加した機材の一覧（プルダウンで選び「追加」→ここに貯める。切替や再描画で消えない）
+let loanSelected = [];   // [{model, cat, maker, qty}]
+// 貸せる在庫（自社在庫のみ・借用の合成在庫は貸せない）
+function loanLoanable() { return (inv||[]).filter(it => !it.synthetic && (it.total||0) > 0); }
+function loanStatus(msg, kind) {
+  const st = document.getElementById('loan-status'); if (!st) return;
+  st.textContent = msg || '';
+  st.style.color = kind === 'err' ? 'var(--danger,#dc2626)' : 'var(--text2)';
+}
+// カテゴリのプルダウンを構築
+function loanFillCats() {
+  const sel = document.getElementById('loan-cat'); if (!sel) return;
+  const cats = [];
+  loanLoanable().forEach(it => { const c = it.cat || 'その他'; if (!cats.includes(c)) cats.push(c); });
+  sel.innerHTML = '<option value="">すべてのカテゴリ</option>' + cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  loanFillModels();
+}
+// 機材のプルダウンを（カテゴリで絞って）構築
+function loanFillModels() {
+  const modSel = document.getElementById('loan-model'); if (!modSel) return;
+  const cat = (document.getElementById('loan-cat')||{}).value || '';
+  const list = loanLoanable().filter(it => !cat || (it.cat || 'その他') === cat);
+  modSel.innerHTML = '<option value="">機材を選択…</option>' + list.map(it => {
+    const av = loanAvailFor(it);
+    const label = `${it.model}${it.maker ? '（' + it.maker + '）' : ''}　空き${av}`;
+    return `<option value="${escHtml(it.model)}"${av <= 0 ? ' disabled' : ''}>${escHtml(label)}</option>`;
+  }).join('');
+  loanOnModelChange();
+}
+// 機材選択時：数量ステッパーの上限・空きヒントを更新
+function loanOnModelChange() {
+  const model = (document.getElementById('loan-model')||{}).value || '';
+  const item = loanLoanable().find(x => String(x.model) === model);
+  const qty = document.getElementById('loan-qty');
+  const hint = document.getElementById('loan-avail-hint');
+  const av = item ? loanAvailFor(item) : 0;
+  if (qty) {
+    qty.disabled = !item || av <= 0;
+    qty.max = Math.max(1, av);
+    if (!item) qty.value = 1;
+    else if ((parseInt(qty.value) || 0) > av) qty.value = Math.max(1, av);
+    else if ((parseInt(qty.value) || 0) < 1) qty.value = 1;
+    syncStepper(qty);
+  }
+  if (hint) hint.textContent = item ? (av > 0 ? `この期間の空き ${av}台` : 'この期間に貸せる在庫がありません') : '';
+}
+// 「追加」：選択中の機材＋数量を一覧に加える（同じ機材は最新の台数で上書き）
+function loanAddSelected() {
+  const model = (document.getElementById('loan-model')||{}).value || '';
+  if (!model) { loanStatus('貸す機材を選んでください', 'err'); return; }
+  const item = loanLoanable().find(x => String(x.model) === model);
+  if (!item) { loanStatus('貸す機材を選んでください', 'err'); return; }
+  const av = loanAvailFor(item);
+  const qv = parseInt((document.getElementById('loan-qty')||{}).value) || 0;
+  if (qv <= 0) { loanStatus('数量を1台以上にしてください', 'err'); return; }
+  if (qv > av) { loanStatus(`この期間に貸せる上限は ${av}台です`, 'err'); return; }
+  const ex = loanSelected.find(s => s.model === model);
+  if (ex) ex.qty = qv;
+  else loanSelected.push({ model: model, cat: item.cat || '', maker: item.maker || '', qty: qv });
+  loanStatus('', '');
+  // 次の追加に備えてプルダウンを戻す
+  const modSel = document.getElementById('loan-model'); if (modSel) modSel.value = '';
+  loanOnModelChange();
+  renderLoanSelected();
+}
+// 一覧から削除（indexで指定＝機材名のエスケープ不要）
+function loanRemoveSelected(i) { loanSelected.splice(i, 1); renderLoanSelected(); }
+// 追加済み一覧を描画
+function renderLoanSelected() {
+  const box = document.getElementById('loan-selected-list'); if (!box) return;
+  if (!loanSelected.length) {
+    box.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text2);font-size:12px;border:1px dashed var(--border2);border-radius:8px">まだ機材が追加されていません</div>';
+    updateLoanPickSummary(); return;
+  }
+  box.innerHTML = loanSelected.map((s, i) => {
+    const item = loanLoanable().find(x => String(x.model) === s.model);
+    const av = item ? loanAvailFor(item) : 0;
+    const bad = s.qty > av;
+    const sub = escHtml(s.cat || '') + (s.maker ? '・' + escHtml(s.maker) : '')
+      + (bad ? ` <span style="color:var(--danger-text);font-weight:600">空き${av}台を超過</span>` : '');
+    return `<div class="loan-sel-row${bad ? ' bad' : ''}">
+      <div class="loan-sel-info">
+        <div class="loan-sel-name">${escHtml(s.model)}</div>
+        <div class="loan-sel-sub">${sub}</div>
+      </div>
+      <div class="loan-sel-qty"><b>${s.qty}</b>台</div>
+      <button type="button" class="loan-sel-del" onclick="loanRemoveSelected(${i})" aria-label="削除"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>`;
   }).join('');
   updateLoanPickSummary();
-}
-// ＋/− ボタン（タップで数量調整・空きで上限クランプ）
-function loanMarkQty(el) {
-  const item = (inv||[]).find(x => String(x.model) === el.getAttribute('data-model'));
-  if (!item) return false;
-  const max = loanAvailFor(item);
-  let qv = parseInt(el.value) || 0;
-  if (qv < 0) { qv = 0; el.value = 0; }
-  const bad = qv > max;
-  el.classList.toggle('bad', bad);
-  el.title = bad ? `この期間に貸せる上限は ${max}台です` : '';
-  el.max = max;
-  el.closest('.stepper')?.classList.toggle('bad', bad);
-  el.closest('.loan-pick-row')?.classList.toggle('on', qv > 0);
-  syncStepper(el);           // ＋/− の有効・無効を同期（共通ステッパー）
-  updateLoanPickSummary();
-  return bad;
 }
 // 選択中の合計を下部に表示
 function updateLoanPickSummary() {
   const el = document.getElementById('loan-pick-summary'); if (!el) return;
-  let items = 0, qty = 0;
-  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(inp => { const v = parseInt(inp.value)||0; if (v>0){ items++; qty += v; } });
-  el.innerHTML = items ? `選択中：<b>${items}品目・計${qty}台</b>` : '＋−で貸す台数を選んでください';
+  const items = loanSelected.length;
+  const qty = loanSelected.reduce((a, s) => a + (parseInt(s.qty) || 0), 0);
+  el.innerHTML = items ? `選択中：<b>${items}品目・計${qty}台</b>` : '機材を選んで「追加」してください';
 }
+// 期間変更時：機材プルダウンの空き数と、追加済みの超過判定を更新
 function loanRevalidateQty() {
-  // 期間変更時：入力値を保持したまま空き数ラベルを再描画
-  const cur = {};
-  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => { cur[el.getAttribute('data-model')] = el.value; });
-  renderLoanItems();
-  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => {
-    const m = el.getAttribute('data-model'); if (cur[m] != null && !el.disabled) { el.value = cur[m]; loanMarkQty(el); }
-  });
+  loanFillModels();
+  renderLoanSelected();
 }
 function submitLoan() {
   const dateOut = (document.getElementById('loan-dateout')||{}).value || '';
@@ -1360,13 +1403,14 @@ function submitLoan() {
   const st = document.getElementById('loan-status');
   if (!dateOut || !dateReturn) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='搬出日・返却日を入力してください'; } return; }
   const items = []; let hasBad = false;
-  document.querySelectorAll('#loan-item-list .loan-in-qty').forEach(el => {
-    const qv = parseInt(el.value) || 0; if (qv <= 0) return;
-    if (loanMarkQty(el)) hasBad = true;
-    items.push({ model: el.getAttribute('data-model'), category: el.getAttribute('data-cat'), maker: el.getAttribute('data-maker'), qty: qv });
+  loanSelected.forEach(s => {
+    const item = loanLoanable().find(x => String(x.model) === s.model);
+    const av = item ? loanAvailFor(item) : 0;
+    if (s.qty > av) hasBad = true;
+    items.push({ model: s.model, category: s.cat, maker: s.maker, qty: s.qty });
   });
-  if (!items.length) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='貸す機材の数量を入力してください'; } return; }
-  if (hasBad) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='空きを超えている機材があります（赤枠）'; } return; }
+  if (!items.length) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='貸す機材を「追加」してください'; } return; }
+  if (hasBad) { if (st) { st.style.color='var(--danger,#dc2626)'; st.textContent='空きを超えている機材があります'; } renderLoanSelected(); return; }
   const btn = document.getElementById('loan-submit-btn');
   if (btn && !btn.dataset.orig) btn.dataset.orig = btn.innerHTML;
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2 spinning" aria-hidden="true"></i> 登録中…'; }
