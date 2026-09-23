@@ -658,6 +658,10 @@ tr:hover td { background: var(--bg3); }
 .cal-event.cal-span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -6px; padding-right: 8px; }
 .cal-event.cal-span-mid   { border-radius: 0; margin-left: -6px; margin-right: -6px; padding-left: 8px; padding-right: 8px; }
 .cal-event.cal-span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -6px; padding-left: 8px; }
+/* 複数日の帯：名前なしの中間/継続日も「実体のある太いバー」にして途切れず1本に見せる（細い線→太い連続バー） */
+.cal-event.cal-span-start, .cal-event.cal-span-mid, .cal-event.cal-span-end { min-height: 20px; box-sizing: border-box; }
+.cal-event.cal-span-cont { color: transparent; }
+.cal-event.cal-span-cont::after { content: "\00a0"; } /* 空でも高さを確保 */
 .cal-more {
   display: block; margin-top: 2px; padding: 2px 6px;
   border-radius: 4px; background: var(--bg4); color: var(--text2);

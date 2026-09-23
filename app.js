@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v98';
+const APP_VERSION = 'v99';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -3220,12 +3220,14 @@ function renderTopPage() {
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 10 ? proj.slice(0,10)+'…' : proj;
-      const showLabel = (ev.span !== 'mid');
+      // 複数日案件：名前は「開始日」「週の先頭(日曜)」「月初(1日)」に表示。それ以外の日は名前なしの“太い連続バー”にして帯を途切れず見せる
+      const showLabel = (ev.span === 'single' || ev.span === 'start' || dowIdx === 0 || d === 1);
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
+      const contCls = (ev.span && ev.span !== 'single' && !showLabel) ? ' cal-span-cont' : '';
       const spanClass = ev.span ? 'cal-span-' + ev.span : '';
       const vc = vehicleClass(ev.vehicle);
       const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + ' ' + spanClass + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
+      return '<div class="cal-event ' + vc + ' ' + spanClass + contCls + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
     }).join('');
     const overflow = events.length > maxShow
       ? `<div class="cal-more" onclick="openCalDayModal('${_dk}',event)">+${events.length - maxShow}件</div>` : '';
