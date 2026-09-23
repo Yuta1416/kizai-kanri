@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v99';
+const APP_VERSION = 'v100';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1956,8 +1956,11 @@ function openEditProject() {
   document.getElementById('ep-project').value = pdProject;
   document.getElementById('ep-staff').value = src.staff || '';
   document.getElementById('ep-vehicle').value = src.vehicle || '';
-  document.getElementById('ep-dateout').value = src.dateOut || src.date || '';
-  document.getElementById('ep-dateret').value = src.dateReturn || src.returnDate || '';
+  // 生のDate文字列(例: Wed Sep 23 2026 09:00:00 GMT+0900…)は読みにくいので「2026/9/23 9:00」形式に整形して表示（再保存もparseDate/normalizeMetaDateで問題なし）
+  const _dOut = src.dateOut || src.date || '';
+  const _dRet = src.dateReturn || src.returnDate || '';
+  document.getElementById('ep-dateout').value = _dOut ? fmtDateDisp(_dOut) : '';
+  document.getElementById('ep-dateret').value = _dRet ? fmtDateDisp(_dRet) : '';
   renderEpItems();
   openModal('modal-edit-project');
 }
@@ -1993,6 +1996,16 @@ function _epNameMatch(a, b) {
   a = String(a||'').trim(); b = String(b||'').trim();
   return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
 }
+// 在庫消費の照合は「同じ在庫マスター品か」で厳密に判定する。
+//   部分一致(_epNameMatch)だと「H-H 3m」(ケーブル)と「H-H 3m 8口」(電源)や「SX300」と「SX300(NL4)」など
+//   “名前が部分的に被る別機材”を同一視して空きを誤計算してしまうため、マスターへ解決して同一かを見る（完全一致優先）。
+function _epSameStockItem(bookingName, masterModel) {
+  bookingName = String(bookingName||'').trim(); masterModel = String(masterModel||'').trim();
+  if (!bookingName || !masterModel) return false;
+  if (bookingName === masterModel) return true;      // 完全一致
+  const a = epMatchInvItem(bookingName), b = epMatchInvItem(masterModel);
+  return !!(a && b && a === b);                        // 双方を在庫マスターへ解決して同一itemなら一致
+}
 // 編集中の期間における、その機材の実質空き数
 //   = 総数 − 特殊(修理/レンタル/不在) − この期間に重なる他の持ち出し・予約のピーク使用数
 //   （編集中の案件自身の予約/持ち出しは除外）。日付未入力なら現在の空き(avail)。
@@ -2006,8 +2019,9 @@ function epAvailFor(name) {
   const s0 = S.getTime(), e0 = E.getTime();
   const FAR = new Date(2999,0,1).getTime();
   const evs = [];
-  const addBk = (mname, qty, dOut, dRet, proj, dk) => {
-    if (!_epNameMatch(mname, item.model)) return;
+  const addBk = (mname, qty, dOut, dRet, proj, dk, note) => {
+    if (note === '[レンタル]' || note === '(在庫管理外)') return; // レンタル/在庫外は自社在庫を消費しない
+    if (!_epSameStockItem(mname, item.model)) return;
     if (proj === pdProject && (!pdDateKey || dk === pdDateKey)) return; // 編集中の案件自身は除外
     const bs = parseDate(dOut); if (!bs) return;
     const be = parseDate(dRet) || new Date(FAR);
@@ -2016,9 +2030,9 @@ function epAvailFor(name) {
     const q = parseInt(qty) || 0; if (q <= 0) return;
     evs.push({ t: bsT, q: q }); evs.push({ t: beT, q: -q });
   };
-  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date)));
-  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut)));
-  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut)));
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date), o.note));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut), r.note));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut), ''));
   evs.sort((a,b) => a.t - b.t);
   let cur = 0, peak = 0, prevT = -Infinity;
   for (const ev of evs) {
@@ -2038,8 +2052,9 @@ function epConflictPeersFor(name) {
   const s0 = S.getTime(), e0 = E.getTime();
   const FAR = new Date(2999,0,1).getTime();
   const peers = [];
-  const addBk = (mname, qty, dOut, dRet, proj, dk) => {
-    if (!_epNameMatch(mname, item.model)) return;
+  const addBk = (mname, qty, dOut, dRet, proj, dk, note) => {
+    if (note === '[レンタル]' || note === '(在庫管理外)') return; // レンタル/在庫外は自社在庫を消費しない
+    if (!_epSameStockItem(mname, item.model)) return;
     if (proj === pdProject && (!pdDateKey || dk === pdDateKey)) return; // 自分は除外
     const bs = parseDate(dOut); if (!bs) return;
     const be = parseDate(dRet) || new Date(FAR);
@@ -2047,9 +2062,9 @@ function epConflictPeersFor(name) {
     const q = parseInt(qty) || 0; if (q <= 0) return;
     peers.push({ project: proj, qty: q });
   };
-  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date)));
-  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut)));
-  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut)));
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date), o.note));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut), r.note));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut), ''));
   return peers;
 }
 // 数量が空きを超えていたら赤枠に（own のみ対象）
