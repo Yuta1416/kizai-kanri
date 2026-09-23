@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v97';
+const APP_VERSION = 'v98';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2028,6 +2028,30 @@ function epAvailFor(name) {
   }
   return Math.max(0, base - peak);
 }
+// 編集期間にその機材がかぶっている「他の現場」一覧（編集中の案件自身は除外）。保存前警告で相手を明示する用。
+function epConflictPeersFor(name) {
+  const item = epMatchInvItem(name);
+  if (!item) return [];
+  const S = parseDate((document.getElementById('ep-dateout')||{}).value);
+  if (!S) return [];
+  const E = parseDate((document.getElementById('ep-dateret')||{}).value) || S;
+  const s0 = S.getTime(), e0 = E.getTime();
+  const FAR = new Date(2999,0,1).getTime();
+  const peers = [];
+  const addBk = (mname, qty, dOut, dRet, proj, dk) => {
+    if (!_epNameMatch(mname, item.model)) return;
+    if (proj === pdProject && (!pdDateKey || dk === pdDateKey)) return; // 自分は除外
+    const bs = parseDate(dOut); if (!bs) return;
+    const be = parseDate(dRet) || new Date(FAR);
+    if (!(bs.getTime() <= e0 && s0 <= be.getTime())) return;
+    const q = parseInt(qty) || 0; if (q <= 0) return;
+    peers.push({ project: proj, qty: q });
+  };
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date)));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut)));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut)));
+  return peers;
+}
 // 数量が空きを超えていたら赤枠に（own のみ対象）
 function epMarkQtyValidity(el, i) {
   const it = epItemsState[i];
@@ -2144,15 +2168,19 @@ function saveEditProject() {
     alert('次の機材は自社在庫にありません。候補から選ぶか、レンタル／フリーに変更してください：\n\n・' + badOwn.map(it => it.itemName.trim()).join('\n・'));
     return;
   }
-  // 自社(own)機材で在庫（この期間の空き）を超える数量はブロック
+  // 自社(own)機材で在庫（この期間の空き）を超える数量はブロック（触っていない機材も含め全点検＋相手現場を明示）
   const overStock = items.filter(it => {
     if (it.kind !== 'own' || !epOwnInInventory(it.itemName)) return false;
     const m = epAvailFor(it.itemName);
     return isFinite(m) && (it.qty|0) > m;
   });
   if (overStock.length) {
-    alert('次の機材は在庫（この期間の空き）を超えています。数量を減らしてください：\n\n'
-      + overStock.map(it => `・${it.itemName.trim()}（空き ${epAvailFor(it.itemName)}台 / 入力 ${it.qty}台）`).join('\n'));
+    alert('次の機材は在庫（この期間の空き）を超えています。数量か日程を調整してください：\n\n'
+      + overStock.map(it => {
+          const peers = epConflictPeersFor(it.itemName);
+          const pstr = peers.length ? `\n　↳ かぶり: ${peers.map(p => `${p.project}×${p.qty}`).join('、')}` : '';
+          return `・${it.itemName.trim()}（空き ${epAvailFor(it.itemName)}台 / 入力 ${it.qty}台）${pstr}`;
+        }).join('\n'));
     return;
   }
   const action = epCreateMode ? 'create_project' : 'edit_project';
@@ -2163,20 +2191,30 @@ function saveEditProject() {
     ? 'この内容で新規案件を登録します。搬入日が未来なら予約、当日以降なら持ち出しとして登録され、荷出しリストも作成されます。よろしいですか？'
     : 'この内容で反映します。マスターの残在庫も差分だけ調整されます。よろしいですか？';
   if (!confirm(confirmMsg)) return;
-  const body = JSON.stringify({ action, data: JSON.stringify(payload) });
-  console.log('[' + action + '] POST body size:', body.length, 'items:', items.length);
-  // 送信（no-cors・レスポンスは opaque だが GAS 側は処理される）。完了は LINE/Slack 通知で分かる
-  fetch(GAS_API_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: body
-  }).catch(err => console.warn('[edit_project]送信警告:', err));
-  // モーダルは即閉じてユーザーを待たせない。反映はバックグラウンドで進み、自動更新で取り込む
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存'; }
-  closeModal('modal-edit-project');
-  closeModal('modal-project-detail');
-  alert('反映を開始しました。20〜40秒ほどで完了し、LINE/Slackに通知が届きます。画面は自動で更新されます。');
+  // JSONPで結果を受け取る（従来の no-cors では失敗が握りつぶされ、編集が黙って破棄されていた）
+  console.log('[' + action + '] items:', items.length);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中…'; }
+  gasJsonp({ action, data: JSON.stringify(payload) }, function(json) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存'; }
+    json = json || {};
+    if (json.status === 'ok') {
+      closeModal('modal-edit-project');
+      closeModal('modal-project-detail');
+      try { reloadData(); } catch(_) {}
+      alert('反映しました。荷出しリストの再生成が続く場合があります（20〜40秒）。画面は自動で更新されます。');
+      return;
+    }
+    // 失敗はここで必ず表示する（かぶり/在庫超過は理由も出す）。モーダルは開いたまま＝そのまま直せる
+    if (json.conflict && json.conflict.message) {
+      alert('保存できませんでした（元の内容はそのまま残っています）。\n\n' + json.conflict.message);
+    } else if (json.status === 'duplicate') {
+      alert(json.message || '既に登録済みです。編集で内容を変更してください。');
+      closeModal('modal-edit-project');
+      closeModal('modal-project-detail');
+    } else {
+      alert('保存できませんでした：' + (json.message || '通信エラー') + '\nもう一度お試しください。');
+    }
+  });
   // 反映結果を取り込むため段階的に自動リロード（機材が多い案件は時間がかかるため2回）
   setTimeout(() => { try { reloadData(); } catch(_){} }, 30000);
   setTimeout(() => { try { reloadData(); } catch(_){} }, 60000);
