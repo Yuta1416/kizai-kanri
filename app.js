@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v101';
+const APP_VERSION = 'v102';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1993,12 +1993,8 @@ function epMatchInvItem(name) {
       || list.find(x => { const kw=String(x.model||'').trim(); return kw && (kw.indexOf(name)!==-1 || name.indexOf(kw)!==-1); })
       || null;
 }
-function _epNameMatch(a, b) {
-  a = String(a||'').trim(); b = String(b||'').trim();
-  return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
-}
 // 在庫消費の照合は「同じ在庫マスター品か」で厳密に判定する。
-//   部分一致(_epNameMatch)だと「H-H 3m」(ケーブル)と「H-H 3m 8口」(電源)や「SX300」と「SX300(NL4)」など
+//   単純な部分一致だと「H-H 3m」(ケーブル)と「H-H 3m 8口」(電源)や「SX300」と「SX300(NL4)」など
 //   “名前が部分的に被る別機材”を同一視して空きを誤計算してしまうため、マスターへ解決して同一かを見る（完全一致優先）。
 function _epSameStockItem(bookingName, masterModel) {
   bookingName = String(bookingName||'').trim(); masterModel = String(masterModel||'').trim();
