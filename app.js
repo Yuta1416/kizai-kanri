@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v100';
+const APP_VERSION = 'v101';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1240,8 +1240,9 @@ function gasJsonp(params, onDone) {
 function _loanPeakUsage(model, sT, eT) {
   const FAR = new Date(2999,0,1).getTime();
   const evs = [];
-  const addBk = (mname, qty, dOut, dRet) => {
-    if (!_epNameMatch(mname, model)) return;
+  const addBk = (mname, qty, dOut, dRet, note) => {
+    if (note === '[レンタル]' || note === '(在庫管理外)') return; // レンタル/在庫外は自社在庫を消費しない
+    if (!_epSameStockItem(mname, model)) return;                 // 部分一致でなくマスター厳密一致（別機材の誤カウント防止）
     const bs = parseDate(dOut); if (!bs) return;
     const be = parseDate(dRet) || new Date(FAR);
     const bsT = bs.getTime(), beT = be.getTime();
@@ -1249,9 +1250,9 @@ function _loanPeakUsage(model, sT, eT) {
     const q = parseInt(qty) || 0; if (q <= 0) return;
     evs.push({ t: bsT, q: q }); evs.push({ t: beT, q: -q });
   };
-  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn));
-  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn));
-  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn));
+  (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.note));
+  (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.note));
+  ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, ''));
   evs.sort((a,b) => a.t - b.t);
   let cur = 0, peak = 0, prevT = -Infinity;
   for (const ev of evs) {
