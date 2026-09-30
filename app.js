@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v102';
+const APP_VERSION = 'v103';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -177,6 +177,9 @@ let coIdx=-1, retIdx=-1, retOutIdx=-1, spIdx=-1, noteIdx=-1;
 let rentalRanking = [];
 let conflicts = [];
 let loans = { out: [], in: [] }; // 拠点間 貸し借り：out=自拠点が貸している / in=借りている
+let loadChecks = new Set();   // 積込チェック済みキー "案件｜搬入日キー｜機材名"（予約タブのチェックボックス・全員共有）
+function loadCheckKey(project, dateKey, itemName) { return (project||'') + '｜' + (dateKey||'') + '｜' + (itemName||''); }
+function buildLoadCheckSet(arr) { const s = new Set(); (arr||[]).forEach(c => s.add(loadCheckKey(c.project, c.dateKey, c.itemName))); return s; }
 let loanHistory = [];        // 拠点間 貸し借りの履歴（専用タブ用）
 let _loanHistLoaded = false; // 一度でも取得できたか
 let _loanHistFetching = false;
@@ -2482,6 +2485,7 @@ function applyData(json) {
     });
   }
 
+  if (json.loadChecks) loadChecks = buildLoadCheckSet(json.loadChecks);
   if (json.reservations) {
     reservations = json.reservations;
     if (currentTab === 'reserve') renderReservations();
@@ -3394,13 +3398,21 @@ function renderReservations() {
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
     const makeRow = r => {
+      const nm = r.itemName || r.model || '';
       const mkLabel = (r.note === '[レンタル]' && r.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(r.maker)}）</span>` : '';
+      const checked = loadChecks.has(loadCheckKey(project, g.dateKey, nm));
       return `
-      <div class="proj-item-row">
-        <span class="proj-item-name">${escHtml(r.itemName || r.model || '')}${mkLabel}</span>
+      <label class="proj-item-row load-check-row${checked ? ' is-checked' : ''}">
+        <input type="checkbox" class="load-check-box" ${checked ? 'checked' : ''}
+          data-proj="${escHtml(project)}" data-dk="${escHtml(g.dateKey)}" data-item="${escHtml(nm)}"
+          onchange="toggleLoadCheck(this)">
+        <span class="proj-item-name">${escHtml(nm)}${mkLabel}</span>
         <span class="proj-item-qty">${(r.qty|0) > 0 ? '×'+(r.qty|0) : ''}</span>
-      </div>`;
+      </label>`;
     };
+    const checkedCount = g.items.filter(r => loadChecks.has(loadCheckKey(project, g.dateKey, (r.itemName || r.model || '')))).length;
+    const total = g.items.length;
+    const allDone = total > 0 && checkedCount === total;
     const own    = g.items.filter(r => r.note !== '[レンタル]' && r.note !== '(在庫管理外)');
     const rental = g.items.filter(r => r.note === '[レンタル]');
     const free   = g.items.filter(r => r.note === '(在庫管理外)');
@@ -3423,6 +3435,7 @@ function renderReservations() {
             ${g.vehicle ? `<span class="badge" style="font-size:10px;background:var(--border);color:var(--text2)"><i class="ti ti-car"></i> ${escHtml(g.vehicle)}</span>` : ''}
           </div>
           <div class="proj-group-right">
+            <span class="load-check-progress${allDone ? ' done' : ''}" title="積込チェック"><i class="ti ${allDone ? 'ti-checks' : 'ti-checkbox'}"></i> 積込 ${checkedCount}/${total}</span>
             <span class="proj-count">${g.items.length}品目</span>
             <button class="act" style="font-size:11px" onclick="openEditReservation('${project.replace(/'/g,"\\'")}','${g.dateKey}',event)">
               <i class="ti ti-edit"></i> 編集
@@ -3438,6 +3451,41 @@ function renderReservations() {
         <div class="proj-group-body" style="display:none">${rows}</div>
       </div>`;
   }).join('');
+}
+
+// 積込チェック：チェックボックスのON/OFF → 楽観更新＋サーバー保存（全員共有）
+function toggleLoadCheck(cb) {
+  const project = cb.dataset.proj || '';
+  const dk = cb.dataset.dk || '';
+  const item = cb.dataset.item || '';
+  const checked = cb.checked;
+  const key = loadCheckKey(project, dk, item);
+  if (checked) loadChecks.add(key); else loadChecks.delete(key);
+  const row = cb.closest('.load-check-row');
+  if (row) row.classList.toggle('is-checked', checked);
+  const group = cb.closest('.proj-group');
+  updateLoadProgress(group);
+  gasJsonp({ action: 'checkload_set', project, dateKey: dk, itemName: item, checked: checked ? '1' : '0' }, function(json) {
+    if (!json || json.status !== 'ok') {
+      if (checked) loadChecks.delete(key); else loadChecks.add(key);
+      cb.checked = !checked;
+      if (row) row.classList.toggle('is-checked', !checked);
+      updateLoadProgress(group);
+      alert('積込チェックの保存に失敗しました。通信環境を確認して、もう一度お試しください。');
+    }
+  });
+}
+function updateLoadProgress(groupEl) {
+  if (!groupEl) return;
+  const boxes = groupEl.querySelectorAll('.load-check-box');
+  const total = boxes.length; let checked = 0;
+  boxes.forEach(b => { if (b.checked) checked++; });
+  const badge = groupEl.querySelector('.load-check-progress');
+  if (badge) {
+    const done = total > 0 && checked === total;
+    badge.classList.toggle('done', done);
+    badge.innerHTML = `<i class="ti ${done ? 'ti-checks' : 'ti-checkbox'}"></i> 積込 ${checked}/${total}`;
+  }
 }
 
 // 予約タブから案件編集モーダルを開く（既存 openEditProject を pdProject/pdDateKey 経由で流用）

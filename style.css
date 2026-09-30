@@ -519,6 +519,19 @@ tr:hover td { background: var(--bg3); }
 .proj-item-row:last-child { border-bottom: none; }
 .proj-item-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; min-width: 120px; }
 .proj-item-qty  { font-size: 13px; font-weight: 700; color: var(--danger-text); min-width: 40px; }
+/* 積込チェック（予約タブ） */
+.load-check-row { cursor: pointer; user-select: none; transition: background 0.12s; }
+.load-check-row:hover { background: var(--bg3); }
+.load-check-box { width: 20px; height: 20px; flex-shrink: 0; accent-color: #16a34a; cursor: pointer; margin: 0; }
+.load-check-row.is-checked { background: color-mix(in srgb, #16a34a 8%, transparent); }
+.load-check-row.is-checked .proj-item-name { color: var(--text2); text-decoration: line-through; text-decoration-color: color-mix(in srgb, #16a34a 60%, transparent); }
+.load-check-progress {
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 999px; background: var(--bg3); white-space: nowrap;
+}
+.load-check-progress.done { background: color-mix(in srgb, #16a34a 18%, var(--bg2)); color: #16a34a; }
+.load-check-progress i { font-size: 13px; }
 
 /* 案件詳細モーダル */
 #pd-items { max-height: 55vh; overflow-y: auto; margin: 4px 0; }
