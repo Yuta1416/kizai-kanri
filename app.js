@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v103';
+const APP_VERSION = 'v104';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -3465,14 +3465,21 @@ function toggleLoadCheck(cb) {
   if (row) row.classList.toggle('is-checked', checked);
   const group = cb.closest('.proj-group');
   updateLoadProgress(group);
+  // 保存はリトライ付き（GASのコールドスタートで初回が一時失敗しても数回試す）
+  saveLoadCheck(project, dk, item, checked, 0, function(ok) {
+    if (ok) return;
+    if (checked) loadChecks.delete(key); else loadChecks.add(key);
+    cb.checked = !checked;
+    if (row) row.classList.toggle('is-checked', !checked);
+    updateLoadProgress(group);
+    alert('積込チェックの保存に失敗しました。通信環境を確認して、もう一度お試しください。');
+  });
+}
+function saveLoadCheck(project, dk, item, checked, attempt, done) {
   gasJsonp({ action: 'checkload_set', project, dateKey: dk, itemName: item, checked: checked ? '1' : '0' }, function(json) {
-    if (!json || json.status !== 'ok') {
-      if (checked) loadChecks.delete(key); else loadChecks.add(key);
-      cb.checked = !checked;
-      if (row) row.classList.toggle('is-checked', !checked);
-      updateLoadProgress(group);
-      alert('積込チェックの保存に失敗しました。通信環境を確認して、もう一度お試しください。');
-    }
+    if (json && json.status === 'ok') { done(true); return; }
+    if (attempt < 3) { setTimeout(function() { saveLoadCheck(project, dk, item, checked, attempt + 1, done); }, 900); }
+    else { done(false); }
   });
 }
 function updateLoadProgress(groupEl) {
