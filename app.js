@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v104';
+const APP_VERSION = 'v105';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1464,8 +1464,8 @@ function renderLoanHistoryHtml() {
   if (!loanHistory.length) {
     return `<div class="empty" style="padding:16px 4px;color:var(--text2);font-size:13px">履歴はまだありません</div>`;
   }
-  const actIcon = a => a==='拠点間貸出' ? '<i class="ti ti-arrow-up-right"></i>' : (a==='拠点間自動返却' ? '<i class="ti ti-refresh"></i>' : '<i class="ti ti-arrow-back-up"></i>');
-  const actCls  = a => a==='拠点間貸出' ? 's-out' : 's-info';
+  const actIcon = a => a==='拠点間貸出' ? '<i class="ti ti-arrow-up-right"></i>' : (a==='拠点間借用' ? '<i class="ti ti-arrow-down-left"></i>' : (a==='拠点間自動返却' ? '<i class="ti ti-refresh"></i>' : '<i class="ti ti-arrow-back-up"></i>'));
+  const actCls  = a => a==='拠点間貸出' ? 's-out' : (a==='拠点間借用' ? 's-partial' : 's-info');
   // 年月でグループ化（loanHistory は新しい順）
   const groups = {}; const order = [];
   loanHistory.forEach(h => {
