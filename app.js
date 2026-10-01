@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v105';
+const APP_VERSION = 'v106';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2830,7 +2830,7 @@ function renderDashboard() {
     const events = dateMap[key] || [];
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
     const maxShow = 3;
-    const eventDots = events.slice(0, maxShow).map(function(ev) {
+    const eventDots = events.map(function(ev) {  // 全ての現場を表示（上限なし）
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
       const rawLabel = proj.length > 8 ? proj.slice(0,8)+'…' : proj;
@@ -3232,10 +3232,10 @@ function renderTopPage() {
     const dowIdx = new Date(year, month, d).getDay();
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
     const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
-    const eventDots = events.slice(0, maxShow).map(function(ev) {
+    const eventDots = events.map(function(ev) {  // 全ての現場を表示（上限なし・+N件でまとめない）
       const proj = ev.proj;
       const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
-      const rawLabel = proj.length > 10 ? proj.slice(0,10)+'…' : proj;
+      const rawLabel = proj; // ラベルはセル幅までCSS(ellipsis)で表示。全文はtitle(ホバー)とタップ詳細で
       // 複数日案件：名前は「開始日」「週の先頭(日曜)」「月初(1日)」に表示。それ以外の日は名前なしの“太い連続バー”にして帯を途切れず見せる
       const showLabel = (ev.span === 'single' || ev.span === 'start' || dowIdx === 0 || d === 1);
       const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
@@ -3245,8 +3245,7 @@ function renderTopPage() {
       const vs = vehicleChipStyle(ev.vehicle);
       return '<div class="cal-event ' + vc + ' ' + spanClass + contCls + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
     }).join('');
-    const overflow = events.length > maxShow
-      ? `<div class="cal-more" onclick="openCalDayModal('${_dk}',event)">+${events.length - maxShow}件</div>` : '';
+    const overflow = ''; // 全件表示するので「+N件」まとめは出さない
     const isHol = isJpHoliday(year, month+1, d);
     const dowCls = (isHol || dowIdx === 0) ? ' sun' : (dowIdx === 6 ? ' sat' : '');
     calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}${isHol?' holiday':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}${overflow}</div></div>`;
