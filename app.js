@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v107';
+const APP_VERSION = 'v108';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -3178,46 +3178,50 @@ function renderTopPage() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
 
-  const dateMap = {};
-  const pushEntry = (key, proj, vehicle, category, span, sortKey) => {
-    if (!dateMap[key]) dateMap[key] = [];
-    let existing = dateMap[key].find(e => e.proj === proj);
-    if (!existing) {
-      existing = { proj, vehicle: vehicle || '', cats: new Set(), span: span || 'single', sortKey: sortKey || 0 };
-      dateMap[key].push(existing);
-    } else if (span) {
-      existing.span = span;
-    }
-    if (category) existing.cats.add(category);
-  };
-  const spanDays = (dOut, dRet, proj, vehicle, category) => {
+  // 現場ごとに「期間バー」を作る（複数日は固定の段=レーンに乗せ、帯が日をまたいでも同じ段に揃うようにする）
+  const barsByProj = {};
+  const addBar = (dOut, dRet, proj, vehicle, category) => {
     const start = new Date(dOut.getFullYear(), dOut.getMonth(), dOut.getDate());
-    const end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
-    if (end < start) return spanDays(dOut, null, proj, vehicle, category);
-    const sortKey = start.getTime();
-    let first = true;
-    for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate()+1)) {
-      const isLast = (cur.getTime() === end.getTime());
-      const span = (first && isLast) ? 'single' : (first ? 'start' : (isLast ? 'end' : 'mid'));
-      const key = cur.getFullYear() + '-' + (cur.getMonth()+1) + '-' + cur.getDate();
-      pushEntry(key, proj, vehicle, category, span, sortKey);
-      first = false;
-    }
+    let end = dRet ? new Date(dRet.getFullYear(), dRet.getMonth(), dRet.getDate()) : start;
+    if (end < start) end = new Date(start);
+    let b = barsByProj[proj];
+    if (!b) { b = barsByProj[proj] = { proj, vehicle: vehicle || '', cats: new Set(), start, end }; }
+    else { if (start < b.start) b.start = start; if (end > b.end) b.end = end; if (vehicle && !b.vehicle) b.vehicle = vehicle; }
+    if (category) b.cats.add(category);
   };
   outItems.forEach(o => {
-    const dOut = parseDate(o.dateOut || o.date);
-    if (!dOut) return;
+    const dOut = parseDate(o.dateOut || o.date); if (!dOut) return;
     const dRet = parseDate(o.returnDate || o.dateReturn) || dOut;
-    spanDays(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
+    addBar(dOut, dRet, o.project || '（案件名未入力）', o.vehicle || '', o.category || '');
   });
   (reservations || []).forEach(r => {
     if (!r.project) return;
-    const dOut = parseDate(r.dateOut);
-    if (!dOut) return;
+    const dOut = parseDate(r.dateOut); if (!dOut) return;
     const dRet = parseDate(r.dateReturn) || dOut;
-    spanDays(dOut, dRet, r.project, r.vehicle || '', r.category || '');
+    addBar(dOut, dRet, r.project, r.vehicle || '', r.category || '');
   });
-  Object.values(dateMap).forEach(arr => arr.sort((a, b) => (a.sortKey||0) - (b.sortKey||0)));
+  // レーン割当：開始が早い順→長い順。期間が重ならない現場は同じレーンを再利用、重なる物は下の段へ。
+  const bars = Object.values(barsByProj);
+  bars.sort((a, b) => (a.start - b.start) || (b.end - a.end) || (a.proj < b.proj ? -1 : 1));
+  const laneBars = [];
+  bars.forEach(bar => {
+    let lane = 0;
+    const overlaps = pb => (bar.start.getTime() <= pb.end.getTime() && pb.start.getTime() <= bar.end.getTime());
+    while (laneBars[lane] && laneBars[lane].some(overlaps)) lane++;
+    (laneBars[lane] || (laneBars[lane] = [])).push(bar);
+    bar.lane = lane;
+  });
+  const _dayT = dd => new Date(year, month, dd).getTime();
+  const barAt = (dd, lane) => {
+    const t = _dayT(dd); const arr = laneBars[lane] || [];
+    for (let i = 0; i < arr.length; i++) { if (arr[i].start.getTime() <= t && t <= arr[i].end.getTime()) return arr[i]; }
+    return null;
+  };
+  const maxLaneAt = dd => {
+    const t = _dayT(dd); let mx = -1;
+    for (let i = 0; i < laneBars.length; i++) { const arr = laneBars[i] || []; if (arr.some(b => b.start.getTime() <= t && t <= b.end.getTime())) mx = i; }
+    return mx;
+  };
 
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const dayNames = ['日','月','火','水','木','金','土'];
@@ -3225,30 +3229,31 @@ function renderTopPage() {
   dayNames.forEach(d => { calCells += `<div class="cal-head">${d}</div>`; });
   // 日曜始まりカレンダー：firstDay(0=日..6=土)ぶんの空セルを詰める
   for (let i = 0; i < firstDay; i++) calCells += `<div class="cal-cell empty"></div>`;
-  const maxShow = 3;
   for (let d = 1; d <= daysInMonth; d++) {
-    const key = year + '-' + (month+1) + '-' + d;
-    const events = dateMap[key] || [];
     const dowIdx = new Date(year, month, d).getDay();
     const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
     const _dk = year + String(month+1).padStart(2,'0') + String(d).padStart(2,'0');
-    const eventDots = events.map(function(ev) {  // 全ての現場を表示（上限なし・+N件でまとめない）
-      const proj = ev.proj;
-      const isPersonOnly = ev.cats && ev.cats.size > 0 && [...ev.cats].every(c => c === '人員のみ');
-      const rawLabel = proj; // ラベルはセル幅までCSS(ellipsis)で表示。全文はtitle(ホバー)とタップ詳細で
-      // 複数日案件：名前は「開始日」「週の先頭(日曜)」「月初(1日)」に表示。それ以外の日は名前なしの“太い連続バー”にして帯を途切れず見せる
-      const showLabel = (ev.span === 'single' || ev.span === 'start' || dowIdx === 0 || d === 1);
-      const label = showLabel ? (isPersonOnly ? '👤 ' + rawLabel : rawLabel) : '';
-      const contCls = (ev.span && ev.span !== 'single' && !showLabel) ? ' cal-span-cont' : '';
-      const spanClass = ev.span ? 'cal-span-' + ev.span : '';
-      const vc = vehicleClass(ev.vehicle);
-      const vs = vehicleChipStyle(ev.vehicle);
-      return '<div class="cal-event ' + vc + ' ' + spanClass + contCls + '" data-project="' + proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
-    }).join('');
-    const overflow = ''; // 全件表示するので「+N件」まとめは出さない
+    const t = _dayT(d);
+    const mx = maxLaneAt(d); // この日に使われている最大レーン（全現場を表示）
+    let eventRows = '';
+    for (let lane = 0; lane <= mx; lane++) {
+      const bar = barAt(d, lane);
+      if (!bar) { eventRows += '<div class="cal-event cal-lane-empty"></div>'; continue; } // 空き段はスペーサーで段位置を合わせる
+      const s = bar.start.getTime(), e = bar.end.getTime();
+      const span = (s === e) ? 'single' : (t === s ? 'start' : (t === e ? 'end' : 'mid'));
+      const isPersonOnly = bar.cats && bar.cats.size > 0 && [...bar.cats].every(c => c === '人員のみ');
+      // 名前は「開始日」「週頭(日曜)」「月初」に表示。それ以外の継続日は名前なしの連続バー。
+      const showLabel = (span === 'single' || span === 'start' || dowIdx === 0 || d === 1);
+      const label = showLabel ? (isPersonOnly ? '👤 ' + bar.proj : bar.proj) : '';
+      const contCls = (span !== 'single' && !showLabel) ? ' cal-span-cont' : '';
+      const spanClass = 'cal-span-' + span;
+      const vc = vehicleClass(bar.vehicle);
+      const vs = vehicleChipStyle(bar.vehicle);
+      eventRows += '<div class="cal-event ' + vc + ' ' + spanClass + contCls + '" data-project="' + bar.proj.replace(/"/g,'&quot;') + '" data-datekey="' + _dk + '" onclick="showProjectDetail(this.dataset.project,this.dataset.datekey,event)" style="cursor:pointer;' + vs + '" title="' + bar.proj.replace(/"/g,'&quot;') + '">' + label + '</div>';
+    }
     const isHol = isJpHoliday(year, month+1, d);
     const dowCls = (isHol || dowIdx === 0) ? ' sun' : (dowIdx === 6 ? ' sat' : '');
-    calCells += `<div class="cal-cell${isToday?' today':''}${events.length?' has-event':''}${dowCls}${isHol?' holiday':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventDots}${overflow}</div></div>`;
+    calCells += `<div class="cal-cell${isToday?' today':''}${mx>=0?' has-event':''}${dowCls}${isHol?' holiday':''}"><span class="cal-day"><span class="cal-day-num">${d}</span></span><div class="cal-events">${eventRows}</div></div>`;
   }
 
   calContainer.innerHTML = `

@@ -675,6 +675,9 @@ tr:hover td { background: var(--bg3); }
 .cal-event.cal-span-start, .cal-event.cal-span-mid, .cal-event.cal-span-end { min-height: 20px; box-sizing: border-box; }
 .cal-event.cal-span-cont { color: transparent; }
 .cal-event.cal-span-cont::after { content: "\00a0"; } /* 空でも高さを確保 */
+/* レーン（段）揃え用の空きスペーサー：複数日の帯が日をまたいでも同じ段に並ぶように、空き段を透明な同高ブロックで埋める */
+.cal-event.cal-lane-empty { background: transparent !important; min-height: 20px; margin: 0; padding: 0; cursor: default; pointer-events: none; box-shadow: none; }
+.cal-event.cal-lane-empty::after { content: "\00a0"; visibility: hidden; }
 .cal-more {
   display: block; margin-top: 2px; padding: 2px 6px;
   border-radius: 4px; background: var(--bg4); color: var(--text2);
