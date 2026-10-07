@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v108';
+const APP_VERSION = 'v109';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -795,7 +795,7 @@ function _renderHistoryInner(container) {
   // 在庫マスターでのカテゴリ出現順
   const catOrder = [...new Set(inv.map(i => i.cat))];
 
-  container.innerHTML = Object.entries(monthGroups).map(([ym, projects]) => {
+  const monthsHtml = Object.entries(monthGroups).map(([ym, projects]) => {
     const projectRows = Object.entries(projects).map(([project, g]) => {
       const makeRow = h => {
         const cls = h.action==='OUT'?'s-out':
@@ -906,6 +906,17 @@ function _renderHistoryInner(container) {
         <div class="proj-group-body" style="padding:6px 8px;display:none">${projectRows}</div>
       </div>`;
   }).join('');
+
+  // 「さらに古い履歴を読み込む」ボタン（サーバーにまだ古い履歴が残っている時だけ・検索中は出さない）
+  let moreHtml = '';
+  if (_histHasMore && !q) {
+    const remain = Math.max(0, _histTotal - _gasHist.length);
+    moreHtml = `<div style="text-align:center;padding:14px 0 4px">
+      <button id="hist-more-btn" class="btn" style="padding:8px 18px;font-size:13px" onclick="fetchHistory(true)">
+        <i class="ti ti-chevron-down"></i> さらに古い履歴を読み込む${remain>0?`（残り約${remain}件）`:''}
+      </button></div>`;
+  }
+  container.innerHTML = (monthsHtml || `<div class="empty">該当する履歴がありません</div>`) + moreHtml;
 }
 
 function downloadHistoryPickupList(project, dateKey) {
@@ -2508,9 +2519,11 @@ function applyData(json) {
   if (json.history && json.history.length > 0) mergeGasHistory(json.history);
 }
 
-// GAS履歴（action=history）を現在のローカルOUT履歴とマージして history に反映
-function mergeGasHistory(arr) {
-  const gasHistory = (arr || []).map(function(h) {
+// サーバー履歴の累積（古い→新しい順）。ページングで継ぎ足す。
+let _gasHist = [];
+// GAS履歴（action=history・新しい順ページ）を累積し、ローカルOUT履歴とマージして history に反映
+function mergeGasHistory(arr, more) {
+  const page = (arr || []).map(function(h) {
     return {
       date:     h.date     || '',
       project:  h.project  || '',
@@ -2524,36 +2537,89 @@ function mergeGasHistory(arr) {
       maker:    h.maker    || '',
     };
   });
-  const existingModels = new Set(gasHistory.map(function(h) { return h.date + h.model; }));
-  const localOnly = history.filter(function(h) { return !existingModels.has(h.date + h.model); });
-  history = gasHistory.concat(localOnly);
+  const pageOld = page.slice().reverse();                 // サーバーは新しい順→古い順に直す
+  _gasHist = more ? pageOld.concat(_gasHist) : pageOld;   // 追加分(より古い)は前に継ぎ足す
+  const gasKeys = new Set(_gasHist.map(function(h) { return h.date + h.model; }));
+  // history に残っているローカル専用行（まだサーバーに無い当セッションの操作）だけ後ろに保持
+  const localOnly = history.filter(function(h) { return !gasKeys.has(h.date + h.model); });
+  history = _gasHist.concat(localOnly);
 }
 
 // 履歴タブを開いた時だけGASから履歴を取得（action=all から分離）
 let _historyFetching = false;
 let _historyLoaded = false;
-function fetchHistory() {
+let _histHasMore = false;
+let _histTotal = 0;
+let _histOffset = 0;
+const HIST_PAGE = 600;   // 1ページの件数（直近だけ即表示→必要なら「さらに読み込む」）
+function fetchHistory(more) {
   if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') { renderHistory(); return; }
   if (_historyFetching) return;
+  if (more && !_histHasMore) return;
   _historyFetching = true;
-  // まだ実履歴が無い（ローカルOUTのみ）の初回はローディング表示。既に読み込み済みなら裏で更新。
   const cont = document.getElementById('hist-container');
-  if (cont && !_historyLoaded) {
+  if (more) {
+    const b = document.getElementById('hist-more-btn');
+    if (b) { b.disabled = true; b.innerHTML = '<i class="ti ti-loader"></i> 読み込み中...'; }
+  } else if (cont && !_historyLoaded) {
+    // 初回だけローディング表示。再取得は裏で差し替え。
     cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">履歴を読み込み中...</div>';
   }
+  const offset = more ? _histOffset : 0;
+  if (!more) { _gasHist = []; _histOffset = 0; _histAllLoaded = false; }   // 新規取得はリセット
   const cb = 'histCb_' + Date.now();
   window[cb] = function(json) {
     delete window[cb];
     const el = document.getElementById('jsonp_' + cb); if (el) el.remove();
     _historyFetching = false;
-    if (json && json.status === 'ok' && json.history) { mergeGasHistory(json.history); _historyLoaded = true; }
+    if (json && json.status === 'ok' && json.history) {
+      mergeGasHistory(json.history, more);
+      _historyLoaded = true;
+      _histTotal = json.total || _gasHist.length;
+      _histHasMore = !!json.hasMore;
+      _histOffset = offset + json.history.length;
+    }
     if (currentTab === 'history') renderHistory();
   };
   const s = document.createElement('script');
   s.id = 'jsonp_' + cb;
-  s.src = GAS_API_URL + '?action=history&callback=' + cb;
+  s.src = GAS_API_URL + '?action=history&limit=' + HIST_PAGE + '&offset=' + offset + '&callback=' + cb;
   s.onerror = function() { delete window[cb]; s.remove(); _historyFetching = false; if (currentTab === 'history') renderHistory(); };
   document.body.appendChild(s);
+}
+
+// 全履歴を一度だけ取得（検索は全期間を対象にしたいので検索語が入った時に使う）
+let _histAllLoaded = false;
+function fetchAllHistory() {
+  if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') return;
+  if (_historyFetching || _histAllLoaded) return;
+  _historyFetching = true;
+  const cb = 'histAllCb_' + Date.now();
+  window[cb] = function(json) {
+    delete window[cb];
+    const el = document.getElementById('jsonp_' + cb); if (el) el.remove();
+    _historyFetching = false;
+    if (json && json.status === 'ok' && json.history) {
+      mergeGasHistory(json.history, false);   // 全件で置き換え
+      _historyLoaded = true; _histAllLoaded = true;
+      _histTotal = json.total || _gasHist.length;
+      _histHasMore = false;
+      _histOffset = json.history.length;
+    }
+    if (currentTab === 'history') renderHistory();
+  };
+  const s = document.createElement('script');
+  s.id = 'jsonp_' + cb;
+  s.src = GAS_API_URL + '?action=history&callback=' + cb;   // limit未指定=全件
+  s.onerror = function() { delete window[cb]; s.remove(); _historyFetching = false; };
+  document.body.appendChild(s);
+}
+
+// 履歴検索：検索語があってサーバーに未取得の古い履歴が残っていれば、全件を取り寄せてから描画
+function onHistSearch() {
+  const q = (document.getElementById('hist-srch')?.value || '').trim();
+  if (q && _histHasMore && !_histAllLoaded && !_historyFetching) fetchAllHistory();
+  renderHistory();
 }
 
 // 拠点間 貸し借りの履歴を取得（貸し借りタブを開いた時）
