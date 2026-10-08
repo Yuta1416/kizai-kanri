@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v110';
+const APP_VERSION = 'v111';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1240,6 +1240,10 @@ function gasJsonp(params, onDone, _attempt) {
   const MAX_ATTEMPTS = 3;                 // 初回＋2リトライ
   const base = Object.assign({}, params); // リトライ用に元paramsを保持（callbackは毎回振り直す）
   delete base.callback;
+  // 自動リトライは「冪等な読み取り系」だけに限定する。
+  //   書き込み系(edit_project等)はサーバー実行済みでも応答が欠けることがあり、再送すると二重登録になるため不可
+  //   (edit_project は旧行削除→再登録・skipDedup=true・日付変更時は旧キーに一致せず重複する)。
+  const SAFE_RETRY = /^(all|inventory|reservations|history|loan_history|shift_file|staff_shift_file|shortage_log|error_list|warmup|loans)$/.test(String(base.action||''));
   const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1000);
   let settled = false, timer = null;
   const cleanup = function(){
@@ -1248,11 +1252,11 @@ function gasJsonp(params, onDone, _attempt) {
     if (timer) { clearTimeout(timer); timer = null; }
   };
   const succeed = function(json){ if (settled) return; settled = true; cleanup(); if (onDone) onDone(json||{}); };
-  // サーバー未実行の失敗（script読み込みエラー）→ 残りがあれば少し待って再送。
+  // script読み込みエラー→ 安全な読み取り系のみ再送。書き込み系は再送せず失敗を返す（二重登録防止）。
   const softFail = function(msg){
     if (settled) return;
     cleanup();
-    if (_attempt < MAX_ATTEMPTS) { setTimeout(function(){ gasJsonp(base, onDone, _attempt + 1); }, 700 * _attempt); }
+    if (SAFE_RETRY && _attempt < MAX_ATTEMPTS) { setTimeout(function(){ gasJsonp(base, onDone, _attempt + 1); }, 700 * _attempt); }
     else { settled = true; if (onDone) onDone({status:'error', message: msg || '通信エラー'}); }
   };
   window[cbName] = succeed;
