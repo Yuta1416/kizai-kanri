@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v109';
+const APP_VERSION = 'v110';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1231,21 +1231,43 @@ function doEditNote() {
 }
 
 // GASへJSONPで送信（レスポンスのstatusを受け取れる）
-function gasJsonp(params, onDone) {
+// GAS通信（JSONP）。GASのコールドスタート対策として自動リトライ＋タイムアウトを備える。
+//  - script読み込みエラー（＝コールドの一時HTMLをJSとして読めない＝サーバー未実行）のときだけ再送。
+//  - 応答が来ない（タイムアウト）ときは、サーバーで実行済みの可能性があるため再送せず失敗として返す（二重反映防止）。
+function gasJsonp(params, onDone, _attempt) {
   if (!GAS_API_URL || GAS_API_URL === 'ここにGASのURLを貼り付け') { if(onDone) onDone({status:'error',message:'API未設定'}); return; }
+  _attempt = _attempt || 1;
+  const MAX_ATTEMPTS = 3;                 // 初回＋2リトライ
+  const base = Object.assign({}, params); // リトライ用に元paramsを保持（callbackは毎回振り直す）
+  delete base.callback;
   const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-  params.callback = cbName;
-  window[cbName] = function(json){
-    delete window[cbName];
+  let settled = false, timer = null;
+  const cleanup = function(){
+    try { delete window[cbName]; } catch(_) {}
     const el = document.getElementById('jsonp_' + cbName); if (el) el.remove();
-    if (onDone) onDone(json||{});
+    if (timer) { clearTimeout(timer); timer = null; }
   };
+  const succeed = function(json){ if (settled) return; settled = true; cleanup(); if (onDone) onDone(json||{}); };
+  // サーバー未実行の失敗（script読み込みエラー）→ 残りがあれば少し待って再送。
+  const softFail = function(msg){
+    if (settled) return;
+    cleanup();
+    if (_attempt < MAX_ATTEMPTS) { setTimeout(function(){ gasJsonp(base, onDone, _attempt + 1); }, 700 * _attempt); }
+    else { settled = true; if (onDone) onDone({status:'error', message: msg || '通信エラー'}); }
+  };
+  window[cbName] = succeed;
   const script = document.createElement('script');
   script.id = 'jsonp_' + cbName;
-  script.src = GAS_API_URL + '?' + new URLSearchParams(params).toString();
-  script.onerror = function(){ if(window[cbName]) window[cbName]({status:'error',message:'通信エラー'}); };
+  script.src = GAS_API_URL + '?' + new URLSearchParams(Object.assign({}, base, {callback: cbName})).toString();
+  script.onerror = function(){ softFail('通信エラー'); };
+  timer = setTimeout(function(){
+    if (settled) return; settled = true; cleanup();
+    if (onDone) onDone({status:'error', message:'応答がありませんでした（時間切れ）。もう一度お試しください。'});
+  }, 20000);
   document.body.appendChild(script);
 }
+// GASを事前に温める（コールドスタート緩和）。編集画面を開いた時などに先行で呼ぶ＝保存時には温まっている。
+function warmupGas() { try { gasJsonp({ action:'warmup' }, function(){}); } catch(_) {} }
 
 // ============================================================
 // 拠点間 貸し借り（アプリ内で完結）
@@ -1937,6 +1959,7 @@ function populateEpCandidates() {
 }
 // ヘッダー「＋新規案件」：編集モーダルを空の作成モードで開く（UI/オートコンプリートを流用）
 function openCreateProject() {
+  warmupGas();            // 保存時のコールドスタート対策：先にGASを温める
   epCreateMode = true;
   pdProject = '';
   pdDateKey = '';
@@ -1951,6 +1974,7 @@ function openCreateProject() {
 }
 function openEditProject() {
   if (!pdProject) return;
+  warmupGas();            // 保存時のコールドスタート対策：先にGASを温める
   epCreateMode = false;
   populateEpCandidates();
   const h3 = document.querySelector('#modal-edit-project h3');
