@@ -626,11 +626,11 @@ tr:hover td { background: var(--bg3); }
 /* カレンダー：セル高さは固定。多イベント日は「+N件」で畳んで一覧モーダルへ */
 .cal-grid {
   display: grid; grid-template-columns: repeat(7, 1fr);
-  column-gap: 4px; row-gap: 4px; padding: 12px;
+  column-gap: 3px; row-gap: 3px; padding: 8px;
 }
 .cal-head { text-align: center; font-size: 12px; font-weight: 700; color: var(--text2); padding: 8px 0; letter-spacing: 0.05em; }
 .cal-cell {
-  min-height: 96px; padding: 6px; border-radius: 10px; font-size: 11px;
+  min-height: 58px; padding: 5px; border-radius: 9px; font-size: 11px;
   position: relative; transition: background 0.12s, box-shadow 0.12s;
   overflow: visible; box-sizing: border-box;
   display: flex; flex-direction: column;
@@ -641,7 +641,7 @@ tr:hover td { background: var(--bg3); }
 /* 日付ラベル：常に同じ高さ(22px)を維持してチップ位置がズレないように */
 .cal-day {
   font-size: 11px; font-weight: 600; color: var(--text2);
-  display: block; margin-bottom: 4px; height: 22px; line-height: 22px;
+  display: block; margin-bottom: 2px; height: 18px; line-height: 18px;
 }
 .cal-day-num { display: inline-block; min-width: 22px; text-align: left; }
 .cal-cell.today {
@@ -656,9 +656,9 @@ tr:hover td { background: var(--bg3); }
 /* 週末カラム */
 .cal-cell.sun .cal-day-num:not(.cal-cell.today *) { color: #dc2626; }
 .cal-cell.sat .cal-day-num:not(.cal-cell.today *) { color: #2563eb; }
-.cal-events { display: flex; flex-direction: column; gap: 3px; }
+.cal-events { display: flex; flex-direction: column; gap: 2px; }
 .cal-event {
-  display: block; font-size: 10.5px; padding: 3px 7px;
+  display: block; font-size: 10px; padding: 2px 6px;
   border-radius: 4px; background: var(--info-bg); color: var(--info-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-weight: 600; line-height: 1.25;
@@ -672,11 +672,11 @@ tr:hover td { background: var(--bg3); }
 .cal-event.cal-span-mid   { border-radius: 0; margin-left: -6px; margin-right: -6px; padding-left: 8px; padding-right: 8px; }
 .cal-event.cal-span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -6px; padding-left: 8px; }
 /* 複数日の帯：名前なしの中間/継続日も「実体のある太いバー」にして途切れず1本に見せる（細い線→太い連続バー） */
-.cal-event.cal-span-start, .cal-event.cal-span-mid, .cal-event.cal-span-end { min-height: 20px; box-sizing: border-box; }
+.cal-event.cal-span-start, .cal-event.cal-span-mid, .cal-event.cal-span-end { min-height: 16px; box-sizing: border-box; }
 .cal-event.cal-span-cont { color: transparent; }
 .cal-event.cal-span-cont::after { content: "\00a0"; } /* 空でも高さを確保 */
 /* レーン（段）揃え用の空きスペーサー：複数日の帯が日をまたいでも同じ段に並ぶように、空き段を透明な同高ブロックで埋める */
-.cal-event.cal-lane-empty { background: transparent !important; min-height: 20px; margin: 0; padding: 0; cursor: default; pointer-events: none; box-shadow: none; }
+.cal-event.cal-lane-empty { background: transparent !important; min-height: 16px; margin: 0; padding: 0; cursor: default; pointer-events: none; box-shadow: none; }
 .cal-event.cal-lane-empty::after { content: "\00a0"; visibility: hidden; }
 .cal-more {
   display: block; margin-top: 2px; padding: 2px 6px;
@@ -839,7 +839,7 @@ tr:hover td { background: var(--bg3); }
   .top-left { position: static; }
 
   .cal-grid { column-gap: 3px; row-gap: 3px; padding: 8px; }
-  .cal-cell { min-height: 72px; padding: 4px; }
+  .cal-cell { min-height: 52px; padding: 4px; }
   .cal-event { font-size: 10px; padding: 2px 5px; }
   .cal-events { gap: 2px; }
 }
