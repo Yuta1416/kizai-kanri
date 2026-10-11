@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v113';
+const APP_VERSION = 'v114';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -3737,6 +3737,7 @@ function applyUpdate() {
 // 版番号を画面に表示（フッターはこの<script>より後に解析されるためDOM構築後にセット）
 function _setAppVersion(){
   const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION;
+  const vh = document.getElementById('app-version-hd'); if (vh) vh.textContent = APP_VERSION;   // ヘッダーにも常時表示
   const sl = document.getElementById('site-shift-title'); if (sl) sl.textContent = SELF_LABEL + 'スケジュール';
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _setAppVersion); else _setAppVersion();
