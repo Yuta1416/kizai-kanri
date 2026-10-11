@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v111';
+const APP_VERSION = 'v112';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1310,7 +1310,10 @@ function loanAvailFor(item) {
   const peak = _loanPeakUsage(item.model, S.getTime(), E.getTime());
   return Math.max(0, base - peak);
 }
+let loanOpId = '';   // 冪等化：拠点間貸出セッションの操作ID（再送時の二重登録を防ぐ）
 function openLoanModal() {
+  warmupGas();                 // コールドスタート対策：先にGASを温める
+  loanOpId = newOpId();        // この貸出セッションの操作ID
   // ラベル
   const pl = document.getElementById('loan-peer-label'); if (pl) pl.textContent = PEER_LABEL;
   document.querySelectorAll('.loan-peer-name').forEach(el => el.textContent = PEER_LABEL);
@@ -1449,8 +1452,10 @@ function submitLoan() {
   if (st) { st.style.color='var(--text2)'; st.textContent='登録中…（数秒かかることがあります）'; }
   const restoreBtn = () => { if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || '貸出登録'; } };
   const payload = { items, dateOut, dateReturn, staff:(document.getElementById('loan-staff')||{}).value||'', note:(document.getElementById('loan-note')||{}).value||'' };
-  gasJsonp({ action:'loan', data: JSON.stringify(payload) }, function(json) {
+  if (!loanOpId) loanOpId = newOpId();
+  gasJsonp({ action:'loan', data: JSON.stringify(payload), opId: loanOpId }, function(json) {
     if (json && json.status === 'ok') {
+      loanOpId = '';   // 成功したら操作IDを破棄
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i> 登録しました'; }
       if (st) { st.style.color='var(--success-text, #16a34a)'; st.textContent = '✓ ' + PEER_LABEL + 'へ貸出登録しました'; }
       setTimeout(function(){ restoreBtn(); closeModal('modal-loan'); reloadData(); fetchLoanHistory(); if (currentTab==='loan') renderLoanTab(); }, 1000);
@@ -1842,6 +1847,8 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 // ==================== 案件編集モーダル ====================
 let epItemsState = [];
 let epCreateMode = false;
+let epOpId = '';   // 冪等化：この編集/新規セッションの操作ID。保存成功まで使い回し、再送されても二重登録しない
+function newOpId() { return 'op_' + Date.now() + '_' + Math.random().toString(36).slice(2,10); }
 // ヘッダー「エクセル投入」：記入済みの荷出しエクセルをアプリからアップロード＝Dropbox投入と同じ処理
 function triggerIngestUpload() {
   const inp = document.getElementById('ingest-file-input');
@@ -1964,6 +1971,7 @@ function populateEpCandidates() {
 // ヘッダー「＋新規案件」：編集モーダルを空の作成モードで開く（UI/オートコンプリートを流用）
 function openCreateProject() {
   warmupGas();            // 保存時のコールドスタート対策：先にGASを温める
+  epOpId = newOpId();     // この新規セッションの操作ID（再送時の二重登録を防ぐ）
   epCreateMode = true;
   pdProject = '';
   pdDateKey = '';
@@ -1979,6 +1987,7 @@ function openCreateProject() {
 function openEditProject() {
   if (!pdProject) return;
   warmupGas();            // 保存時のコールドスタート対策：先にGASを温める
+  epOpId = newOpId();     // この編集セッションの操作ID（再送時の二重登録を防ぐ）
   epCreateMode = false;
   populateEpCandidates();
   const h3 = document.querySelector('#modal-edit-project h3');
@@ -2248,10 +2257,12 @@ function saveEditProject() {
   // JSONPで結果を受け取る（従来の no-cors では失敗が握りつぶされ、編集が黙って破棄されていた）
   console.log('[' + action + '] items:', items.length);
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> 反映中…'; }
-  gasJsonp({ action, data: JSON.stringify(payload) }, function(json) {
+  if (!epOpId) epOpId = newOpId();
+  gasJsonp({ action, data: JSON.stringify(payload), opId: epOpId }, function(json) {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> 保存'; }
     json = json || {};
     if (json.status === 'ok') {
+      epOpId = '';   // 成功したら操作IDを破棄（次の編集は新しいIDに）
       closeModal('modal-edit-project');
       closeModal('modal-project-detail');
       try { reloadData(); } catch(_) {}
