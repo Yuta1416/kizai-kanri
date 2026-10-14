@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v114';
+const APP_VERSION = 'v115';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1293,7 +1293,7 @@ function _loanPeakUsage(model, sT, eT) {
   (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.note));
   (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.note));
   ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, ''));
-  evs.sort((a,b) => a.t - b.t);
+  evs.sort((a,b) => (a.t - b.t) || (a.q - b.q)); // 同時刻は終了(-q)を開始(+q)より先に＝境界で瞬間的に両方数えない
   let cur = 0, peak = 0, prevT = -Infinity;
   for (const ev of evs) {
     if (cur > peak && prevT < eT && ev.t > sT) peak = cur;
@@ -2081,7 +2081,7 @@ function epAvailFor(name) {
   (outItems||[]).forEach(o => addBk(o.model, o.qty, o.dateOut||o.date, o.returnDate||o.dateReturn, o.project, dateKeyOf(o.dateOut||o.date), o.note));
   (reservations||[]).forEach(r => addBk(r.itemName, r.qty, r.dateOut, r.dateReturn, r.project, dateKeyOf(r.dateOut), r.note));
   ((loans&&loans.out)||[]).forEach(l => addBk(l.model, l.qty, l.dateOut, l.dateReturn, '[貸出]'+(l.peer||''), dateKeyOf(l.dateOut), ''));
-  evs.sort((a,b) => a.t - b.t);
+  evs.sort((a,b) => (a.t - b.t) || (a.q - b.q)); // 同時刻は終了(-q)を開始(+q)より先に＝境界で瞬間的に両方数えない
   let cur = 0, peak = 0, prevT = -Infinity;
   for (const ev of evs) {
     // 区間[prevT, ev.t)の使用数は cur。編集期間(s0,e0]と重なるならピーク更新
