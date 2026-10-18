@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v117';
+const APP_VERSION = 'v118';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -178,8 +178,22 @@ let rentalRanking = [];
 let conflicts = [];
 let loans = { out: [], in: [] }; // 拠点間 貸し借り：out=自拠点が貸している / in=借りている
 let loadChecks = new Set();   // 積込チェック済みキー "案件｜搬入日キー｜機材名"（予約タブのチェックボックス・全員共有）
+let loadCheckBy = {};         // キー → チェックした人の名前（表示用）
 function loadCheckKey(project, dateKey, itemName) { return (project||'') + '｜' + (dateKey||'') + '｜' + (itemName||''); }
-function buildLoadCheckSet(arr) { const s = new Set(); (arr||[]).forEach(c => s.add(loadCheckKey(c.project, c.dateKey, c.itemName))); return s; }
+function buildLoadCheckSet(arr) { const s = new Set(); loadCheckBy = {}; (arr||[]).forEach(c => { const k = loadCheckKey(c.project, c.dateKey, c.itemName); s.add(k); if (c.by) loadCheckBy[k] = c.by; }); return s; }
+// 積込チェックの「自分の名前」（端末ごとにlocalStorageで保持）
+function myNameLabel() { try { return (localStorage.getItem('kizai_my_name')||'').trim() || '(未設定)'; } catch(_) { return '(未設定)'; } }
+function getMyName(forcePrompt) {
+  let n = ''; try { n = (localStorage.getItem('kizai_my_name')||'').trim(); } catch(_) {}
+  if (!n || forcePrompt) {
+    const v = prompt('積込チェックに記録する「あなたの名前」を入力してください（この端末に保存されます）', n || '');
+    if (v === null) return n;                 // キャンセル＝変更しない
+    n = v.trim();
+    try { localStorage.setItem('kizai_my_name', n); } catch(_) {}
+  }
+  return n;
+}
+function changeMyName() { getMyName(true); try { render(); } catch(_) {} }
 let loanHistory = [];        // 拠点間 貸し借りの履歴（専用タブ用）
 let _loanHistLoaded = false; // 一度でも取得できたか
 let _loanHistFetching = false;
@@ -3505,20 +3519,24 @@ function renderReservations() {
     const tb = db ? db.getTime() : Infinity;
     return ta - tb;
   });
-  container.innerHTML = sortedGroups.map(g => {
+  const _whoami = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--text2);background:var(--card);border:1px solid var(--border);border-radius:8px"><i class="ti ti-user-check"></i> 積込チェック担当: <b style="color:var(--text)">${escHtml(myNameLabel())}</b><button class="act" style="font-size:11px" onclick="changeMyName()"><i class="ti ti-edit"></i> 変更</button></div>`;
+  container.innerHTML = _whoami + sortedGroups.map(g => {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
     const makeRow = r => {
       const nm = r.itemName || r.model || '';
       const mkLabel = (r.note === '[レンタル]' && r.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(r.maker)}）</span>` : '';
-      const checked = loadChecks.has(loadCheckKey(project, g.dateKey, nm));
+      const _ck = loadCheckKey(project, g.dateKey, nm);
+      const checked = loadChecks.has(_ck);
+      const by = loadCheckBy[_ck] || '';
       return `
       <label class="proj-item-row load-check-row${checked ? ' is-checked' : ''}">
         <input type="checkbox" class="load-check-box" ${checked ? 'checked' : ''}
           data-proj="${escHtml(project)}" data-dk="${escHtml(g.dateKey)}" data-item="${escHtml(nm)}"
           onchange="toggleLoadCheck(this)">
         <span class="proj-item-name">${escHtml(nm)}${mkLabel}</span>
+        <span class="load-check-by" style="font-size:10px;color:var(--info-text);margin-left:auto;margin-right:8px;white-space:nowrap">${checked && by ? '✓ '+escHtml(by) : ''}</span>
         <span class="proj-item-qty">${(r.qty|0) > 0 ? '×'+(r.qty|0) : ''}</span>
       </label>`;
     };
@@ -3572,25 +3590,34 @@ function toggleLoadCheck(cb) {
   const item = cb.dataset.item || '';
   const checked = cb.checked;
   const key = loadCheckKey(project, dk, item);
-  if (checked) loadChecks.add(key); else loadChecks.delete(key);
   const row = cb.closest('.load-check-row');
+  const byEl = row ? row.querySelector('.load-check-by') : null;
+  let by = '';
+  if (checked) {
+    by = getMyName(false);
+    if (!by) { cb.checked = false; alert('先に「あなたの名前」を設定してください（上の「変更」から設定できます）'); return; }
+  }
+  const prevBy = loadCheckBy[key] || '';
+  if (checked) { loadChecks.add(key); loadCheckBy[key] = by; } else { loadChecks.delete(key); delete loadCheckBy[key]; }
   if (row) row.classList.toggle('is-checked', checked);
+  if (byEl) byEl.textContent = checked ? ('✓ ' + by) : '';
   const group = cb.closest('.proj-group');
   updateLoadProgress(group);
   // 保存はリトライ付き（GASのコールドスタートで初回が一時失敗しても数回試す）
-  saveLoadCheck(project, dk, item, checked, 0, function(ok) {
+  saveLoadCheck(project, dk, item, checked, by, 0, function(ok) {
     if (ok) return;
-    if (checked) loadChecks.delete(key); else loadChecks.add(key);
+    if (checked) { loadChecks.delete(key); delete loadCheckBy[key]; } else { loadChecks.add(key); if (prevBy) loadCheckBy[key] = prevBy; }
     cb.checked = !checked;
     if (row) row.classList.toggle('is-checked', !checked);
+    if (byEl) byEl.textContent = (!checked && prevBy) ? ('✓ ' + prevBy) : '';
     updateLoadProgress(group);
     alert('積込チェックの保存に失敗しました。通信環境を確認して、もう一度お試しください。');
   });
 }
-function saveLoadCheck(project, dk, item, checked, attempt, done) {
-  gasJsonp({ action: 'checkload_set', project, dateKey: dk, itemName: item, checked: checked ? '1' : '0' }, function(json) {
+function saveLoadCheck(project, dk, item, checked, by, attempt, done) {
+  gasJsonp({ action: 'checkload_set', project, dateKey: dk, itemName: item, checked: checked ? '1' : '0', by: by||'' }, function(json) {
     if (json && json.status === 'ok') { done(true); return; }
-    if (attempt < 3) { setTimeout(function() { saveLoadCheck(project, dk, item, checked, attempt + 1, done); }, 900); }
+    if (attempt < 3) { setTimeout(function() { saveLoadCheck(project, dk, item, checked, by, attempt + 1, done); }, 900); }
     else { done(false); }
   });
 }
