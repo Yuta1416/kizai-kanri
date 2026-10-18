@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v116';
+const APP_VERSION = 'v117';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1706,8 +1706,10 @@ function clearAddSug() {
   ['cat','maker','model'].forEach(f => { const c=document.getElementById('add-'+f+'-sug'); if(c) c.innerHTML=''; });
 }
 function doAdd() {
-  const cat=document.getElementById('add-cat').value.trim();
-  const maker=document.getElementById('add-maker').value.trim();
+  let cat=document.getElementById('add-cat').value.trim();
+  if(!cat){ const cs=document.getElementById('add-cat-sel'); if(cs && cs.value.trim()) cat=cs.value.trim(); } // ドロップダウン選択がコピーされなくても拾う（その他に落ちる不具合対策）
+  let maker=document.getElementById('add-maker').value.trim();
+  if(!maker){ const ms=document.getElementById('add-maker-sel'); if(ms && ms.value.trim()) maker=ms.value.trim(); }
   const model=document.getElementById('add-model').value.trim();
   const total=parseInt(document.getElementById('add-qty').value);
   const note=document.getElementById('add-note').value.trim();
