@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v120';
+const APP_VERSION = 'v121';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -1137,6 +1137,7 @@ function doReturn() {
     : outItems.findLastIndex(o=>o.invIdx===retIdx);
   const project = oi>=0 ? (outItems[oi].project || '') : '';
   const retModel = oi>=0 ? (outItems[oi].model || item.model || '') : (item.model || '');
+  const retDK = oi>=0 ? (dateKeyOf(outItems[oi].dateOut || outItems[oi].date) || '') : ''; // 同名別日の取り違え防止：搬入日で絞る
   if(oi>=0) outItems.splice(oi,1);
   retOutIdx = -1;
   history.push({date:now,project:project,staff:'',model:`${item.maker} ${item.model}`,qty,action:'返却',note});
@@ -1153,7 +1154,7 @@ function doReturn() {
     };
     const script3 = document.createElement('script');
     script3.id = 'jsonp_' + cbName3;
-    script3.src = GAS_API_URL + '?action=return&project=' + encodeURIComponent(project) + '&item=' + encodeURIComponent(retModel) + '&qty=' + qty + '&callback=' + cbName3;
+    script3.src = GAS_API_URL + '?action=return&project=' + encodeURIComponent(project) + '&dateKey=' + encodeURIComponent(retDK||'') + '&item=' + encodeURIComponent(retModel) + '&qty=' + qty + '&callback=' + cbName3;
     document.body.appendChild(script3);
   }
 }
