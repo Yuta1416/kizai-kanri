@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v118';
+const APP_VERSION = 'v119';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -178,6 +178,7 @@ let rentalRanking = [];
 let conflicts = [];
 let loans = { out: [], in: [] }; // 拠点間 貸し借り：out=自拠点が貸している / in=借りている
 let loadChecks = new Set();   // 積込チェック済みキー "案件｜搬入日キー｜機材名"（予約タブのチェックボックス・全員共有）
+let expandedGroups = new Set(); // 展開中グループ(project|dateKey)。自動更新の再描画でも開いたままにする
 let loadCheckBy = {};         // キー → チェックした人の名前（表示用）
 function loadCheckKey(project, dateKey, itemName) { return (project||'') + '｜' + (dateKey||'') + '｜' + (itemName||''); }
 function buildLoadCheckSet(arr) { const s = new Set(); loadCheckBy = {}; (arr||[]).forEach(c => { const k = loadCheckKey(c.project, c.dateKey, c.itemName); s.add(k); if (c.by) loadCheckBy[k] = c.by; }); return s; }
@@ -995,6 +996,10 @@ function toggleGroup(head) {
   const isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'block';
   chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+  // 展開状態を記録（自動更新の再描画でも開いたままにする）
+  const grp = head.closest('.proj-group');
+  const k = grp && grp.dataset ? grp.dataset.gkey : '';
+  if (k) { if (isOpen) expandedGroups.delete(k); else expandedGroups.add(k); }
 }
 
 function bulkReturn(project, dateKey, e) {
@@ -3554,11 +3559,13 @@ function renderReservations() {
     const rows = groupByCat(own) +
       (rental.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rental.map(makeRow).join('') : '') +
       (free.length ? `<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>` + free.map(makeRow).join('') : '');
+    const _gkey = project + '|' + g.dateKey;
+    const _open = expandedGroups.has(_gkey);
     return `
-      <div class="proj-group">
+      <div class="proj-group" data-gkey="${escHtml(_gkey)}">
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
-            <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
+            <i class="ti ti-chevron-down proj-chevron" style="transform:${_open ? '' : 'rotate(-90deg)'}"></i>
             <span class="proj-group-name">${escHtml(project)}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${escHtml(g.staff||'担当未入力')}</span>
             <span class="badge s-info" style="font-size:10px"><i class="ti ti-calendar"></i> 搬入 ${escHtml(g.dateOut)}</span>
@@ -3578,7 +3585,7 @@ function renderReservations() {
             </button>
           </div>
         </div>
-        <div class="proj-group-body" style="display:none">${rows}</div>
+        <div class="proj-group-body" style="display:${_open ? 'block' : 'none'}">${rows}</div>
       </div>`;
   }).join('');
 }
