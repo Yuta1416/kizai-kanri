@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v119';
+const APP_VERSION = 'v120';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -641,7 +641,8 @@ function renderOut() {
     const da = parseDate(a.dateOut); const db = parseDate(b.dateOut);
     return (da ? da.getTime() : Infinity) - (db ? db.getTime() : Infinity);
   });
-  container.innerHTML = sortedGroups.map(g => {
+  const _whoami = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--text2);background:var(--card);border:1px solid var(--border);border-radius:8px"><i class="ti ti-user-check"></i> 積込チェック担当: <b style="color:var(--text)">${escHtml(myNameLabel())}</b><button class="act" style="font-size:11px" onclick="changeMyName()"><i class="ti ti-edit"></i> 変更</button></div>`;
+  container.innerHTML = _whoami + sortedGroups.map(g => {
     const project = g.project;
     const _d = parseDate(g.dateOut);
     const _md = _d ? `（${_d.getMonth()+1}/${_d.getDate()}）` : '';
@@ -654,10 +655,18 @@ function renderOut() {
     const rentalItems = g.items.filter(o => o.note === '[レンタル]');
     const freeItems   = g.items.filter(o => o.note === '(在庫管理外)');
     const makeRow = o => {
+      const nm = String(o.model||'');
       const mkLabel = (o.note === '[レンタル]' && o.maker) ? `<span style="font-size:10px;color:var(--info-text);margin-left:6px">（${escHtml(o.maker)}）</span>` : '';
+      const _ck = loadCheckKey(project, g.dateKey, nm);
+      const checked = loadChecks.has(_ck);
+      const by = loadCheckBy[_ck] || '';
       return `
-      <div class="proj-item-row">
-        <span class="proj-item-name">${escHtml(String(o.model||''))}${mkLabel}</span>
+      <div class="proj-item-row load-check-row${checked ? ' is-checked' : ''}">
+        <input type="checkbox" class="load-check-box" ${checked ? 'checked' : ''}
+          data-proj="${escHtml(project)}" data-dk="${escHtml(g.dateKey)}" data-item="${escHtml(nm)}"
+          onchange="toggleLoadCheck(this)">
+        <span class="proj-item-name">${escHtml(nm)}${mkLabel}</span>
+        <span class="load-check-by" style="font-size:10px;color:var(--info-text);margin-left:auto;margin-right:8px;white-space:nowrap">${checked && by ? '✓ '+escHtml(by) : ''}</span>
         <span class="proj-item-qty">${(o.qty|0) > 0 ? '×'+(o.qty|0) : ''}</span>
         <button class="act" style="padding:3px 8px;font-size:11px" onclick="openReturnFromOut(${o.outIdx})">
           <i class="ti ti-arrow-down-left"></i> 返却
@@ -673,11 +682,13 @@ function renderOut() {
     const itemRows = groupByCat(ownItems) +
       (rentalItems.length ? `<div class="pd-cat-head pd-cat-rental">レンタル品</div>` + rentalItems.map(makeRow).join('') : '') +
       (freeItems.length ? `<div class="pd-cat-head pd-cat-free">備考（フリー機材）</div>` + freeItems.map(makeRow).join('') : '');
+    const _gkey = project + '|' + g.dateKey;
+    const _open = expandedGroups.has(_gkey);
     return `
-      <div class="proj-group">
+      <div class="proj-group" data-gkey="${escHtml(_gkey)}">
         <div class="proj-group-head" onclick="toggleGroup(this)">
           <div class="proj-group-left">
-            <i class="ti ti-chevron-down proj-chevron" style="transform:rotate(-90deg)"></i>
+            <i class="ti ti-chevron-down proj-chevron" style="transform:${_open ? '' : 'rotate(-90deg)'}"></i>
             <span class="proj-group-name">${project}${_md}${loanBadge(project)}</span>
             <span class="proj-group-meta">${g.staff||'担当未入力'}</span>
             ${introBadge}${autoLabel}
@@ -692,7 +703,7 @@ function renderOut() {
             </button>
           </div>
         </div>
-        <div class="proj-group-body" style="display:none">${itemRows}</div>
+        <div class="proj-group-body" style="display:${_open ? 'block' : 'none'}">${itemRows}</div>
       </div>`;
   }).join('');
 }
