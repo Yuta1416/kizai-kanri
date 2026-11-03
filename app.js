@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v123';
+const APP_VERSION = 'v124';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -423,21 +423,39 @@ const CAT_ICONS = {
 // カテゴリをまたいで複数選択→まとめて 修理中/レンタル中/長期不在 に。行番号ベースで確実保存。
 let selectMode = false;
 const selectedRows = new Set();
+const selectedQty = {};   // row -> 一括変更に回す数量（既定=残数）。選択中のカードで直接調整できる。
 
 function toggleSelectMode() {
   selectMode = !selectMode;
-  if (!selectMode) selectedRows.clear();
+  if (!selectMode) { selectedRows.clear(); for (const k in selectedQty) delete selectedQty[k]; }
   renderInventory();
   updateBulkBar();
 }
 function toggleSelectItem(row) {
   if (!row) return;
-  if (selectedRows.has(row)) selectedRows.delete(row); else selectedRows.add(row);
+  if (selectedRows.has(row)) { selectedRows.delete(row); delete selectedQty[row]; }
+  else {
+    selectedRows.add(row);
+    const it = inv.find(i => i.row === row);
+    selectedQty[row] = it ? avail(it) : 1;   // 選択時は残数を初期値に
+  }
   renderInventory();
   updateBulkBar();
 }
+// 選択カードの数量入力（＋/−・直接入力の両方から呼ばれる）
+function updateSelQty(input) {
+  syncStepper(input);
+  const row = parseInt(input.dataset.row);
+  const max = parseInt(input.dataset.max) || 0;
+  let q = parseInt(input.value);
+  if (isNaN(q)) return;                 // 入力途中（空欄）は保存しない
+  if (q > max) { q = max; input.value = max; }
+  if (q < 0)   { q = 0;   input.value = 0; }
+  selectedQty[row] = q;
+}
 function clearSelection() {
   selectMode = false; selectedRows.clear();
+  for (const k in selectedQty) delete selectedQty[k];
   renderInventory(); updateBulkBar();
 }
 function updateBulkBar() {
@@ -459,33 +477,50 @@ function updateBulkBar() {
       : '<i class="ti ti-checkbox" aria-hidden="true"></i> 選択';
   }
 }
-// 「適用」→ 各機材の数量を指定するモーダルを開く（初期値=残数、機材ごとに変更可）
+// 「適用」→ 選択カードで指定した数量のまま、その場で一括反映（モーダルを挟まない）
 function applyBulkSpecial() {
   const status = document.getElementById('bulk-status').value;
-  const targets = [];
+  const payload = [];
+  const localApply = [];
   const skipped = [];
   selectedRows.forEach(row => {
     const item = inv.find(i => i.row === row);
     if (!item) return;
-    if (avail(item) > 0) targets.push(item);
-    else skipped.push(item.model);
-  });
-  if (!targets.length) { alert('変更できる在庫がある機材が選択されていません。'); return; }
-  window._bulkStatus = status;
-  document.getElementById('bulk-qty-status').innerHTML =
-    `ステータス: <strong>${escHtml(status)}</strong> ／ ${targets.length}件`
-    + (skipped.length ? `<br><span style="color:var(--text2)">（在庫0のため対象外: ${skipped.length}件）</span>` : '');
-  document.getElementById('bulk-qty-list').innerHTML = targets.map(item => {
     const av = avail(item);
-    return `<div class="bulk-qty-row">
-      <div class="bulk-qty-name">${escHtml(item.model)}<span class="bulk-qty-maker">${escHtml(item.maker)}</span></div>
-      <div class="bulk-qty-ctrl">
-        ${stepperHtml(`<input type="number" class="step-input bulk-qty-input" data-row="${item.row}" data-max="${av}" value="${av}" min="0" max="${av}" inputmode="numeric" oninput="syncStepper(this)">`)}
-        <span class="bulk-qty-avail">/ ${av}</span>
-      </div>
-    </div>`;
-  }).join('');
-  openModal('modal-bulk-qty');
+    if (av <= 0) { skipped.push(item.model); return; }   // 在庫0は対象外
+    let q = (selectedQty[row] != null) ? selectedQty[row] : av;
+    if (q > av) q = av;
+    if (q < 1) return;                                     // 0は変更しない
+    payload.push({ row: row, qty: q });
+    localApply.push({ item: item, qty: q });
+  });
+  if (!payload.length) { alert('数量を1以上にした機材が選択されていません。'); return; }
+  _sendBulkSpecial(status, payload, localApply);
+}
+// ローカル反映＋サーバー一括送信（applyBulkSpecial / モーダル確定の共通処理）
+function _sendBulkSpecial(status, payload, localApply) {
+  const now = new Date().toLocaleString('ja-JP');
+  localApply.forEach(t => {
+    t.item.special += t.qty; t.item.status = status;
+    history.push({ date: now, project:'', staff:'', model: `${t.item.maker} ${t.item.model}`, qty: t.qty, action: status, note:'' });
+  });
+  clearSelection();
+  render();
+  if (GAS_API_URL && GAS_API_URL !== 'ここにGASのURLを貼り付け') {
+    const cbB = 'cb_' + Date.now();
+    const params = new URLSearchParams({ action: 'special_bulk', status: status, items: JSON.stringify(payload), callback: cbB });
+    window[cbB] = function(json) {
+      delete window[cbB];
+      const el = document.getElementById('jsonp_' + cbB); if (el) el.remove();
+      if (!json || json.status !== 'ok') alert('一括変更の保存に失敗しました。再度お試しください。');
+      fetchFromSpreadsheet();
+    };
+    const script = document.createElement('script');
+    script.id = 'jsonp_' + cbB;
+    script.src = GAS_API_URL + '?' + params.toString();
+    script.onerror = function(){ delete window[cbB]; script.remove(); alert('通信エラー：一括変更を保存できませんでした。'); };
+    document.body.appendChild(script);
+  }
 }
 
 // モーダルで入力した数量で一括適用（行番号ベース＋ロック）
@@ -566,6 +601,18 @@ function renderInventory() {
       const cntCls = st==='OUT'||av===0?'c-red':st==='PARTIAL'?'c-amber':'c-green';
       if (selectMode) {
         const on = selectedRows.has(item.row);
+        // 選択中は数量ステッパーを表示（この機材を何台 変更するか）。既定=残数。
+        //   ステッパー操作で選択がトグルされないよう onclick は stopPropagation。
+        const q = (selectedQty[item.row] != null) ? Math.min(selectedQty[item.row], av) : av;
+        const rightUi = on
+          ? `<div class="item-card-right sel-qty" onclick="event.stopPropagation()" style="align-items:flex-end;gap:2px">
+               ${stepperHtml(`<input type="number" class="step-input bulk-qty-input" data-row="${item.row}" data-max="${av}" value="${q}" min="1" max="${av}" inputmode="numeric" oninput="updateSelQty(this)">`, true)}
+               <div class="item-card-total">/ ${av}</div>
+             </div>`
+          : `<div class="item-card-right">
+               <div class="item-card-count ${cntCls}">${av}</div>
+               <div class="item-card-total">/ ${item.total}</div>
+             </div>`;
         return `
         <div class="item-card sel-card${on?' sel-on':''}" onclick="toggleSelectItem(${item.row||0})">
           <div class="sel-check">${on?'<i class="ti ti-check" aria-hidden="true"></i>':''}</div>
@@ -574,10 +621,7 @@ function renderInventory() {
             <div class="item-card-maker">${escHtml(item.maker)}</div>
             ${badge(st)}
           </div>
-          <div class="item-card-right">
-            <div class="item-card-count ${cntCls}">${av}</div>
-            <div class="item-card-total">/ ${item.total}</div>
-          </div>
+          ${rightUi}
         </div>`;
       }
       const cls = st==='OUT'?'card-out':st==='PARTIAL'?'card-partial':'';
