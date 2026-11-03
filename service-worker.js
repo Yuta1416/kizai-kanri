@@ -1,13 +1,14 @@
 // ★デプロイのたびに必ずこの版番号を上げる（新SWを検知→installで即skipWaiting→自動で最新化）
 //   app.js の APP_VERSION も同じ値に揃える
-const CACHE_NAME = 'kizai-cache-v121';
+const CACHE_NAME = 'kizai-cache-v122';
 
 // PWA用にアイコン等だけキャッシュ（アプリ本体は一切キャッシュしない＝常に最新）
 const CORE_ASSETS = ['/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
-  // 新版は即座に有効化して待機状態を作らない（＝更新バナーのループを原理的に防止・詰まったPWAも自動回復）
-  self.skipWaiting();
+  // 新版は skipWaiting せず「待機」させる（＝閲覧中に勝手にリロードしない）。
+  //   ユーザーが更新バナーの「今すぐ更新」を押すと message(SKIP_WAITING)で有効化→リロードする。
+  //   初回インストール時は controller が居ないため待機にならず自動で有効化される。
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       Promise.allSettled(CORE_ASSETS.map(url => cache.add(url)))

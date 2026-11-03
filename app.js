@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v121';
+const APP_VERSION = 'v122';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -3774,9 +3774,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 function showUpdateBanner(worker) {
-  // 自動更新方式に変更：新SWはinstallで即skipWaiting→activate→controllerchangeで自動リロードするため
-  // バナーは表示しない（待機状態が残らずループしない）。互換のため関数自体は残す。
+  // 新版を検知したら強制リロードせず、バナーを出してユーザーの任意タイミングで更新させる。
   window._pendingSW = worker;
+  var b = document.getElementById('update-banner');
+  if (b) b.style.display = 'flex';
 }
 function applyUpdate() {
   const w = window._pendingSW;
