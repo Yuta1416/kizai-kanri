@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v122';
+const APP_VERSION = 'v123';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -349,7 +349,8 @@ function render() {
   if (currentTab === 'special')   renderSpecial();
   if (currentTab === 'reserve')   renderReservations();
   if (currentTab === 'loan')      renderLoanTab();
-  if (currentTab === 'history')   renderHistory();
+  // 履歴は汎用renderでは描き直さない（自動更新(1分/5分)でスクロールや「さらに古い履歴」がリセットされるのを防ぐ）。
+  //   履歴の描画は fetchHistory（タブを開く/さらに読み込む/手動更新）だけが行う。
   if (currentTab === 'dashboard') renderDashboard();
 }
 
@@ -2726,6 +2727,7 @@ function fetchFromSpreadsheet() {
   //   GASは同一デプロイへの同時実行を直列化するため、action=all と競合して開くのが遅くなる。
   //   → action=all を最優先で取得し、スタッフシフトは成功後に読む（下の callback）。
   const _retry = arguments[0] || 0;
+  const _bg = arguments[1] || false; // true=自動更新(バックグラウンド)。履歴タブは再取得しない
   if (_retry === 0) setLastUpdated(null, true); // 取得中は「更新中…」（キャッシュ表示中でも分かるように）
   const cbName = 'gasCallback_' + Date.now();
   let settled = false;
@@ -2742,7 +2744,7 @@ function fetchFromSpreadsheet() {
     clearTimeout(timer);
     cleanup();
     if (_retry < 2) {
-      setTimeout(function() { fetchFromSpreadsheet(_retry + 1); }, 1500); // ローディング表示は維持したまま再試行
+      setTimeout(function() { fetchFromSpreadsheet(_retry + 1, _bg); }, 1500); // ローディング表示は維持したまま再試行
     } else {
       showLoading(false);
       setLastUpdated(null, false); // 「更新中…」を止める（キャッシュ表示のまま最終更新時刻を残す）
@@ -2763,7 +2765,7 @@ function fetchFromSpreadsheet() {
       setLastUpdated(Date.now(), false); // 「最終更新 HH:MM」
       render();
       if (currentTab === 'dashboard') renderDashboard();
-      if (currentTab === 'history') fetchHistory(); // 履歴タブ表示中の再取得時も履歴を最新化
+      if (currentTab === 'history' && !_bg) fetchHistory(); // 履歴は手動更新/タブ再表示の時だけ最新化（自動更新では触らない）
       showLoading(false);
       // アプリが使える状態になってから、重いシフト/スケジュール表を読む（ホーム表示用・GAS競合回避）。
       // スタッフ→現場の順にずらして取得（同一GASのDropbox往復が重なるのを避ける）。
@@ -3739,8 +3741,8 @@ function reloadData() {
   }
   fetchFromSpreadsheet();       // いずれにせよ裏で最新を取得
 })();
-// 5分ごとに自動更新
-setInterval(fetchFromSpreadsheet, 300000);
+// 5分ごとに自動更新（バックグラウンド＝履歴タブは触らない）
+setInterval(function(){ fetchFromSpreadsheet(0, true); }, 300000);
 setInterval(checkAutoReturn, 60000);
 
 
