@@ -21,7 +21,7 @@ const SELF_LABEL = PEER_LABEL === '東京' ? '大阪' : (PEER_LABEL === '大阪'
 const SELF_LOC   = SELF_LABEL === '大阪' ? 'osaka' : (SELF_LABEL === '東京' ? 'tokyo' : '');
 
 // ★アプリの版番号（画面表示用）。デプロイのたびに service-worker.js の CACHE_NAME と揃えて上げる
-const APP_VERSION = 'v124';
+const APP_VERSION = 'v125';
 
 const SC = {
   'IN':        {cls:'s-in',    icon:'ti-circle-check'},
@@ -2272,9 +2272,14 @@ function epOnNameChange(i, val) {
   const it = epItemsState[i];
   if (!it) return;
   it.itemName = val;
-  if (it.kind === 'own' && (!it.maker || it.maker.trim() === '')) {
-    const hit = (inv || []).find(x => String(x.model) === String(val));
-    if (hit && hit.maker) { it.maker = hit.maker; renderEpItems(); }
+  if (it.kind === 'own') {
+    const hit = epMatchInvItem(val);
+    if (hit) {
+      let needRender = false;
+      if ((!it.maker || it.maker.trim() === '') && hit.maker) { it.maker = hit.maker; needRender = true; }
+      if (hit.cat) it.category = hit.cat;   // ジャンルをマスターから補完（その他に落ちる不具合対策）
+      if (needRender) renderEpItems();
+    }
   }
 }
 function epAddItem(kind) {
@@ -2303,6 +2308,13 @@ function saveEditProject() {
     dateReturn: document.getElementById('ep-dateret').value.trim(),
   };
   const items = epItemsState.filter(it => it.itemName && it.itemName.trim() !== '' && ((it.qty|0) > 0 || it.kind === 'rental' || it.kind === 'free'));
+  // 自社機材はジャンルをマスターから確定（空のままだと保存時に「その他」になるのを防ぐ）
+  items.forEach(it => {
+    if (it.kind === 'own' && (!it.category || !String(it.category).trim())) {
+      const hit = epMatchInvItem(it.itemName);
+      if (hit && hit.cat) it.category = hit.cat;
+    }
+  });
   if (!meta.project) { alert('案件名は必須です'); return; }
   // 自社(own)機材で在庫マスターに無いものはブロック（在庫外はレンタル/フリーで追加してもらう）
   const badOwn = items.filter(it => it.kind === 'own' && !epOwnInInventory(it.itemName));
